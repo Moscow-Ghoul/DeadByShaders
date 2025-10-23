@@ -1,15 +1,6 @@
-//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-// Dead by Daylight Enhanced Visibility Shader
-// Provides brightness enhancement, red isolation, hue shifting, and sharpening
-//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 #include "ReShade.fxh"
 
-//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-// Uniforms (User Controls)
-//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-// Brightness Settings
 uniform float Brightness <
     ui_type = "slider";
     ui_label = "Brightness";
@@ -19,7 +10,6 @@ uniform float Brightness <
     ui_step = 0.01;
 > = 1.25;
 
-// Red Enhancement Settings
 uniform float3 TargetColor <
     ui_type = "color";
     ui_label = "Target Color";
@@ -45,7 +35,6 @@ uniform float RedSaturationBoost <
     ui_step = 0.01;
 > = 2.7;
 
-// Hue Shift Settings
 uniform float TargetHueShift <
     ui_type = "slider";
     ui_label = "Target Color Hue Shift";
@@ -81,7 +70,6 @@ uniform float ChromaPeriod <
 
 uniform float timer < source = "timer"; >;
 
-// Deathslinger Crosshair Settings
 uniform bool ShowCrosshair <
     ui_label = "Show Deathslinger Crosshair";
     ui_category = "Crosshairs";
@@ -93,7 +81,6 @@ uniform float3 CrosshairColor <
     ui_category = "Crosshairs";
 > = float3(1.0, 1.0, 1.0);
 
-// Huntress Crosshair Settings
 uniform bool ShowHuntressCrosshair <
     ui_label = "Show Huntress Crosshair";
     ui_category = "Crosshairs";
@@ -119,15 +106,10 @@ uniform float3 DashLineColor <
     ui_category = "Crosshairs";
 > = float3(1.0, 1.0, 1.0);
 
-// Sharpening
 uniform bool sharpyn <
     ui_label = "Enable sharpening";
     ui_tooltip = "Make it krispy";
 > = true;
-
-//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-// Constants
-//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 static const float SHARPNESS_STRENGTH = 1.40;
 static const float SHARPNESS_RADIUS = 0.6;
@@ -136,11 +118,6 @@ static const float CrosshairThickness = 1.0;
 static const float CrosshairSize = 5.0;
 static const float HuntressCrosshairVerticalOffset = 0.527;
 
-//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-// Helper Functions
-//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-// RGB to HSV conversion
 float3 RGB2HSV(float3 rgb)
 {
     float4 K = float4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
@@ -152,7 +129,6 @@ float3 RGB2HSV(float3 rgb)
     return float3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
 }
 
-// HSV to RGB conversion
 float3 HSV2RGB(float3 hsv)
 {
     float4 K = float4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
@@ -160,7 +136,6 @@ float3 HSV2RGB(float3 hsv)
     return hsv.z * lerp(K.xxx, saturate(p - K.xxx), hsv.y);
 }
 
-// Calculate color similarity with strict red filtering
 float GetColorMask(float3 color, float3 target, float likeness)
 {
     // Convert both colors to HSV
@@ -204,11 +179,8 @@ float GetColorMask(float3 color, float3 target, float likeness)
     // Apply power curve to make falloff more aggressive
     return pow(mask, 1.5);
 }
-//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-// Pixel Shaders
-//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-// Simple Brightness Enhancement with Shadow Lift
+// Simple Brightness with Shadow Lift
 float3 PS_BrightnessEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
 {
     float3 color = tex2D(ReShade::BackBuffer, texcoord).rgb;
@@ -232,7 +204,7 @@ float3 PS_BrightnessEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD
     return saturate(color);
 }
 
-// Color Enhancement and Hue Shifting
+// Color Enhancement and Hue Shift
 float3 PS_RedEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
 {
     float3 color = tex2D(ReShade::BackBuffer, texcoord).rgb;
@@ -374,7 +346,7 @@ float3 PS_HuntressCrosshair(float4 pos : SV_Position, float2 texcoord : TEXCOORD
     return color;
 }
 
-// Dash Killer Line
+// Wesker Crosshair
 float3 PS_DashLine(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
 {
     float3 color = tex2D(ReShade::BackBuffer, texcoord).rgb;
@@ -439,10 +411,6 @@ float3 PS_DashLine(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Ta
     
     return color;
 }
-
-//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-// Techniques
-//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 technique all_u_need_4_dbd_by_misha<
     ui_label = "All you need for DBD";
