@@ -179,7 +179,7 @@ float GetColorMask(float3 color, float3 target, float likeness)
     return pow(mask, 1.2);
 }
 
-// HDR-style Brightness Enhancement
+// Simple Brightness with Contrast Preservation
 float3 PS_BrightnessEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
 {
     float3 color = tex2D(ReShade::BackBuffer, texcoord).rgb;
@@ -187,29 +187,15 @@ float3 PS_BrightnessEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD
     // Calculate luminance
     float luma = dot(color, float3(0.2126, 0.7152, 0.0722));
     
-    // Enhanced shadow lift with smoother curve
-    float shadowMask = pow(1.0 - luma, 2.0);
-    float shadowLift = (Brightness - 1.0) * 0.8;
+    // Shadow lift curve that keeps very dark lows dark, but lifts low-mid values
+    // Peaks around 0.2-0.4 luminance range, minimal effect on very dark (<0.1) and bright (>0.5)
+    float shadowMask = luma * pow(1.0 - luma, 1.8);
+    float shadowLift = (Brightness - 1.0) * 4.0;
     color += shadowLift * shadowMask;
     
-    // Midtone enhancement - boost visibility in medium brightness areas
-    float midtoneMask = 4.0 * luma * (1.0 - luma); // Peaks at 0.5
-    color += midtoneMask * (Brightness - 1.0) * 0.3;
-    
-    // Apply overall brightness with subtle saturation preservation
-    color *= lerp(0.75, 0.95, Brightness - 0.8) * Brightness;
-    
-    // HDR-style tonemapping curve for better contrast
-    float exposure = 1.2;
-    color = 1.0 - exp(-color * exposure);
-    
-    // Adaptive contrast - stronger in dark areas, gentler in bright areas
-    float adaptiveContrast = lerp(1.4, 1.1, luma);
+    // Add subtle 15% contrast boost
     float midpoint = 0.5;
-    color = pow(saturate((color - midpoint) * adaptiveContrast + midpoint), 0.95);
-    
-    // Subtle color grading - slightly lift blacks for better visibility
-    color = lerp(float3(0.02, 0.02, 0.02), float3(1.0, 1.0, 1.0), color);
+    color = (color - midpoint) * 1.15 + midpoint;
     
     return saturate(color);
 }
@@ -288,10 +274,10 @@ float3 PS_Sharpen(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Tar
         blur /= 8.0;
         
         // Calculate sharpening
-        float3 sharp = color - 0.7 * blur;
+        float3 sharp = color - blur;
         sharp = clamp(sharp, -SHARPNESS_CLAMP, SHARPNESS_CLAMP);
         
-        return saturate(color + sharp * SHARPNESS_STRENGTH);
+        color = saturate(color + sharp * SHARPNESS_STRENGTH);
     }
     
     return color;
