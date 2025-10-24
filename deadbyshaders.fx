@@ -1,4 +1,3 @@
-
 #include "ReShade.fxh"
 
 uniform float Brightness <
@@ -180,7 +179,7 @@ float GetColorMask(float3 color, float3 target, float likeness)
     return pow(mask, 1.2);
 }
 
-// Simple Brightness with Shadow Lift
+// HDR-style Brightness Enhancement
 float3 PS_BrightnessEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
 {
     float3 color = tex2D(ReShade::BackBuffer, texcoord).rgb;
@@ -188,18 +187,29 @@ float3 PS_BrightnessEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD
     // Calculate luminance
     float luma = dot(color, float3(0.2126, 0.7152, 0.0722));
     
-    // Shadow lift - affects darker areas more
-    float shadowMask = 1.0 - pow(luma, 1.5);
-    float shadowLift = (Brightness - 1.0) * 0.5;
+    // Enhanced shadow lift with smoother curve
+    float shadowMask = pow(1.0 - luma, 2.0);
+    float shadowLift = (Brightness - 1.0) * 0.8;
     color += shadowLift * shadowMask;
     
-    // Apply overall brightness
-    color *= Brightness;
+    // Midtone enhancement - boost visibility in medium brightness areas
+    float midtoneMask = 4.0 * luma * (1.0 - luma); // Peaks at 0.5
+    color += midtoneMask * (Brightness - 1.0) * 0.3;
     
-    // Subtle contrast boost (around midpoint)
-    float contrastBoost = 1.3;
+    // Apply overall brightness with subtle saturation preservation
+    color *= lerp(0.75, 0.95, Brightness - 0.8) * Brightness;
+    
+    // HDR-style tonemapping curve for better contrast
+    float exposure = 1.2;
+    color = 1.0 - exp(-color * exposure);
+    
+    // Adaptive contrast - stronger in dark areas, gentler in bright areas
+    float adaptiveContrast = lerp(1.4, 1.1, luma);
     float midpoint = 0.5;
-    color = (color - midpoint) * contrastBoost + midpoint;
+    color = pow(saturate((color - midpoint) * adaptiveContrast + midpoint), 0.95);
+    
+    // Subtle color grading - slightly lift blacks for better visibility
+    color = lerp(float3(0.02, 0.02, 0.02), float3(1.0, 1.0, 1.0), color);
     
     return saturate(color);
 }
@@ -240,7 +250,9 @@ float3 PS_RedEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_
         
         // Enhance saturation for matching colors
         hsv.y = saturate(hsv.y * RedSaturationBoost);
-	hsv.z = hsv.z * 1.1;
+        
+        // Boost brightness/value slightly for better visibility
+        hsv.z = saturate(hsv.z * 1.15);
         
         // Convert back to RGB
         float3 shiftedColor = HSV2RGB(hsv);
