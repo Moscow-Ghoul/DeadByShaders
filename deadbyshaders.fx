@@ -7,7 +7,7 @@ uniform float Brightness <
     ui_category = "Brightness";
     ui_min = 0.8; ui_max = 1.5;
     ui_step = 0.01;
-> = 1.25;
+> = 1.20;
 
 uniform float3 TargetColor <
     ui_type = "color";
@@ -23,7 +23,7 @@ uniform float ColorLikeness <
     ui_category = "Red Enhancement";
     ui_min = 0.05; ui_max = 0.5;
     ui_step = 0.01;
-> = 0.4;
+> = 0.2;
 
 uniform float RedSaturationBoost <
     ui_type = "slider";
@@ -32,7 +32,7 @@ uniform float RedSaturationBoost <
     ui_category = "Red Enhancement";
     ui_min = 1.0; ui_max = 3.0;
     ui_step = 0.01;
-> = 2.7;
+> = 1.7;
 
 uniform float TargetHueShift <
     ui_type = "slider";
@@ -41,7 +41,7 @@ uniform float TargetHueShift <
     ui_category = "Hue Shift";
     ui_min = -180.0; ui_max = 180.0;
     ui_step = 1.0;
-> = -43.0;
+> = 170.0;
 
 uniform float HueShiftFalloff <
     ui_type = "slider";
@@ -50,7 +50,7 @@ uniform float HueShiftFalloff <
     ui_category = "Hue Shift";
     ui_min = 0.5; ui_max = 3.0;
     ui_step = 0.1;
-> = 1.5;
+> = 2.0;
 
 uniform bool ChromaMode <
     ui_label = "Enable Chroma Mode";
@@ -65,7 +65,7 @@ uniform float ChromaPeriod <
     ui_category = "Hue Shift";
     ui_min = 0.1; ui_max = 10.0;
     ui_step = 0.5;
-> = 5.0;
+> = 2.8;
 
 uniform float timer < source = "timer"; >;
 
