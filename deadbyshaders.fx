@@ -111,8 +111,8 @@ uniform bool sharpyn <
     ui_tooltip = "Make it krispy";
 > = true;
 
-static const float SHARPNESS_STRENGTH = 1.40;
-static const float SHARPNESS_RADIUS = 0.6;
+static const float SHARPNESS_STRENGTH = 1.30;
+static const float SHARPNESS_RADIUS = 0.5;
 static const float SHARPNESS_CLAMP = 0.3;
 static const float CrosshairThickness = 1.0;
 static const float CrosshairSize = 5.0;
@@ -148,7 +148,7 @@ float GetColorMask(float3 color, float3 target, float likeness)
     
     // STRICT HUE FILTER: Only process colors close to the target hue
     // Define a tight hue range around the target color (about ±0.05 or ~18 degrees)
-    float hueRange = 0.05;
+    float hueRange = 0.075;
     bool isMatchingHue = (hueDist < hueRange);
     
     // If not in the target hue range, reject immediately
@@ -168,7 +168,7 @@ float GetColorMask(float3 color, float3 target, float likeness)
     float valDist = abs(colorHSV.z - targetHSV.z) * 0.15;
     
     // Combine distances with hue being most important
-    float totalDist = 4.0 * hueDist + satDist + valDist;
+    float totalDist = 2.0 * hueDist + satDist + valDist;
     
     // Convert likeness to threshold (tighter threshold)
     float threshold = likeness * 2.5;
@@ -177,7 +177,7 @@ float GetColorMask(float3 color, float3 target, float likeness)
     float mask = saturate(1.0 - (totalDist / threshold));
     
     // Apply power curve to make falloff more aggressive
-    return pow(mask, 1.5);
+    return pow(mask, 1.2);
 }
 
 // Simple Brightness with Shadow Lift
@@ -197,7 +197,7 @@ float3 PS_BrightnessEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD
     color *= Brightness;
     
     // Subtle contrast boost (around midpoint)
-    float contrastBoost = 1.4;
+    float contrastBoost = 1.3;
     float midpoint = 0.5;
     color = (color - midpoint) * contrastBoost + midpoint;
     
@@ -240,6 +240,7 @@ float3 PS_RedEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_
         
         // Enhance saturation for matching colors
         hsv.y = saturate(hsv.y * RedSaturationBoost);
+	hsv.z = hsv.z * 1.1;
         
         // Convert back to RGB
         float3 shiftedColor = HSV2RGB(hsv);
@@ -275,7 +276,7 @@ float3 PS_Sharpen(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Tar
         blur /= 8.0;
         
         // Calculate sharpening
-        float3 sharp = color - blur;
+        float3 sharp = color - 0.7 * blur;
         sharp = clamp(sharp, -SHARPNESS_CLAMP, SHARPNESS_CLAMP);
         
         return saturate(color + sharp * SHARPNESS_STRENGTH);
