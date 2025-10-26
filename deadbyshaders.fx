@@ -7,7 +7,7 @@ uniform float Brightness <
     ui_category = "Brightness";
     ui_min = 0.8; ui_max = 1.5;
     ui_step = 0.01;
-> = 1.20;
+> = 1.30;
 
 uniform float3 TargetColor <
     ui_type = "color";
@@ -23,7 +23,7 @@ uniform float ColorLikeness <
     ui_category = "Red Enhancement";
     ui_min = 0.05; ui_max = 0.5;
     ui_step = 0.01;
-> = 0.2;
+> = 0.35;
 
 uniform float RedSaturationBoost <
     ui_type = "slider";
@@ -32,7 +32,7 @@ uniform float RedSaturationBoost <
     ui_category = "Red Enhancement";
     ui_min = 1.0; ui_max = 3.0;
     ui_step = 0.01;
-> = 1.7;
+> = 1.3;
 
 uniform float TargetHueShift <
     ui_type = "slider";
@@ -50,7 +50,7 @@ uniform float HueShiftFalloff <
     ui_category = "Hue Shift";
     ui_min = 0.5; ui_max = 3.0;
     ui_step = 0.1;
-> = 2.0;
+> = 1.2;
 
 uniform bool ChromaMode <
     ui_label = "Enable Chroma Mode";
@@ -189,13 +189,13 @@ float3 PS_BrightnessEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD
     
     // Shadow lift curve that keeps very dark lows dark, but lifts low-mid values
     // Peaks around 0.2-0.4 luminance range, minimal effect on very dark (<0.1) and bright (>0.5)
-    float shadowMask = luma * pow(1.0 - luma, 1.8);
+    float shadowMask = luma * pow(1.0 - luma, 1.5);
     float shadowLift = (Brightness - 1.0) * 4.0;
     color += shadowLift * shadowMask;
     
     // Add subtle 15% contrast boost
-    float midpoint = 0.5;
-    color = (color - midpoint) * 1.15 + midpoint;
+    float midpoint = 0.4;
+    color = (color - midpoint) * 1.10 + midpoint;
     
     return saturate(color);
 }
@@ -277,7 +277,7 @@ float3 PS_Sharpen(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Tar
         float3 sharp = color - blur;
         sharp = clamp(sharp, -SHARPNESS_CLAMP, SHARPNESS_CLAMP);
         
-        color = saturate(color + sharp * SHARPNESS_STRENGTH);
+        color = saturate(color + 0.7 * sharp * SHARPNESS_STRENGTH);
     }
     
     return color;
