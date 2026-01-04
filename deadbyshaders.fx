@@ -21,18 +21,24 @@ uniform bool AntiYellow <
     ui_category = "Overall";
 > = false;
 
+uniform bool AntiGreen <
+    ui_label = "Enable Anti-Green Filter";
+    ui_tooltip = "Makes Autoheaven less sickly-looking (why do i even  have to do this, bhvr, it was fine before)";
+    ui_category = "Overall";
+> = false;
+
 uniform float3 TargetColor <
     ui_type = "color";
     ui_label = "Target Color";
     ui_tooltip = "Pick the exact color you want to enhance (e.g., scratch marks, blood)";
-    ui_category = "Red Enhancement";
+    ui_category = "Red Enhancement + colorshift";
 > = float3(1.0, 0.392157, 0.392157);
 
 uniform float ColorLikeness <
     ui_type = "slider";
     ui_label = "Color Likeness";
     ui_tooltip = "Determines how similar a color can be to the target color in order to be changed, lesser values are more strict and greater values are more inclusive";
-    ui_category = "Red Enhancement";
+    ui_category = "Red Enhancement + colorshift";
     ui_min = 0.05; ui_max = 0.5;
     ui_step = 0.01;
 > = 0.4;
@@ -41,7 +47,7 @@ uniform float RedSaturationBoost <
     ui_type = "slider";
     ui_label = "Saturation Boost";
     ui_tooltip = "How acidic do you want your scratchies to be?";
-    ui_category = "Red Enhancement";
+    ui_category = "Red Enhancement + colorshift";
     ui_min = 1.0; ui_max = 3.0;
     ui_step = 0.01;
 > = 2.7;
@@ -50,7 +56,7 @@ uniform float TargetHueShift <
     ui_type = "slider";
     ui_label = "Target Color Hue Shift";
     ui_tooltip = "Determines the outcome color; think of it as the number of degrees by which you shift the color wheel";
-    ui_category = "Hue Shift";
+    ui_category = "Red Enhancement + colorshift";
     ui_min = -180.0; ui_max = 180.0;
     ui_step = 1.0;
 > = -43.0;
@@ -59,7 +65,7 @@ uniform float HueShiftFalloff <
     ui_type = "slider";
     ui_label = "Hue Shift Smoothness";
     ui_tooltip = "Determines the logic for edge pixels, higher values are for a smoother shift. Also higher values make the color more saturated lol, I gotta fix it at some point";
-    ui_category = "Hue Shift";
+    ui_category = "Red Enhancement + colorshift";
     ui_min = 0.5; ui_max = 3.0;
     ui_step = 0.1;
 > = 1.5;
@@ -67,14 +73,14 @@ uniform float HueShiftFalloff <
 uniform bool ChromaMode <
     ui_label = "Enable Chroma Mode";
     ui_tooltip = "Automatically cycle through hue shifts (rainbow effect)";
-    ui_category = "Hue Shift";
+    ui_category = "Red Enhancement + colorshift";
 > = false;
 
 uniform float ChromaPeriod <
     ui_type = "slider";
     ui_label = "Chroma Cycle Speed";
     ui_tooltip = "Time in seconds for one full color cycle";
-    ui_category = "Hue Shift";
+    ui_category = "Red Enhancement + colorshift";
     ui_min = 0.1; ui_max = 10.0;
     ui_step = 0.5;
 > = 5.0;
@@ -252,6 +258,44 @@ float3 PS_RedEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_
     return saturate(color);
 }
 
+// Anti-Green Filter
+float3 PS_AntiGreen(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
+{
+    float3 color = tex2D(ReShade::BackBuffer, texcoord).rgb;
+    
+    if (!AntiGreen)
+        return color;
+    
+    float3 hsv = RGB2HSV(color);
+    
+    // Use adjustable green hue target
+    float greenHueCenter = 0.3;
+    float greenHueRange = 0.08;
+    float orangeTintAmount = 0.10;
+    float brightnessDarken = 0.90;
+    
+    // Calculate distance from green hue center
+    float hueDist = abs(hsv.x - greenHueCenter);
+    
+    // Create mask for green colors	
+    float greenMask = 1.0 - saturate(hueDist / greenHueRange);
+    
+    // Reduce brightness of greens
+    hsv.z = lerp(hsv.z, hsv.z * brightnessDarken, greenMask);
+    
+    // Fully desaturate green tones
+    hsv.y = lerp(hsv.y, 0.0, greenMask);
+    
+    // Convert back to RGB
+    color = HSV2RGB(hsv);
+    
+    // Add orange tint to the desaturated greens (additive)
+    float3 orangeTint = float3(orangeTintAmount, orangeTintAmount * 0.5, 0.0);
+    color += orangeTint * greenMask;
+    
+    return saturate(color);
+}
+
 // Anti-Yellow Filter
 float3 PS_AntiYellow(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
 {
@@ -271,7 +315,7 @@ float3 PS_AntiYellow(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_
     // Calculate distance from yellow hue center
     float hueDist = abs(hsv.x - yellowHueCenter);
     
-    // Create mask for yellow colors
+    // Create mask for yellow colors	
     float yellowMask = 1.0 - saturate(hueDist / yellowHueRange);
     
     // Reduce brightness of yellows
@@ -454,6 +498,24 @@ technique all_u_need_4_dbd_by_misha<
     ui_tooltip = "Comprehensive shader for Dead by Daylight by Misha \"Moscow Ghoul\""; 
 >
 {
+    pass Sharpening
+    {
+        VertexShader = PostProcessVS;
+        PixelShader = PS_Sharpen;
+    }
+
+    pass AntiGreenFilter
+    {
+        VertexShader = PostProcessVS;
+        PixelShader = PS_AntiGreen;
+    }
+
+    pass AntiYellowFilter
+    {
+        VertexShader = PostProcessVS;
+        PixelShader = PS_AntiYellow;
+    }
+
     pass RedEnhancement
     {
         VertexShader = PostProcessVS;
@@ -466,18 +528,6 @@ technique all_u_need_4_dbd_by_misha<
         PixelShader = PS_BrightnessEnhance;
     }
         
-    pass Sharpening
-    {
-        VertexShader = PostProcessVS;
-        PixelShader = PS_Sharpen;
-    }
-
-    pass AntiYellowFilter
-    {
-        VertexShader = PostProcessVS;
-        PixelShader = PS_AntiYellow;
-    }
-
     pass Crosshair
     {
         VertexShader = PostProcessVS;
