@@ -4,10 +4,22 @@ uniform float Brightness <
     ui_type = "slider";
     ui_label = "Brightness";
     ui_tooltip = "Makes the game brighter, duh";
-    ui_category = "Brightness";
+    ui_category = "Overall";
     ui_min = 0.8; ui_max = 1.5;
     ui_step = 0.01;
-> = 1.30;
+> = 1.25;
+
+uniform bool sharpyn <
+    ui_label = "Enable sharpening";
+    ui_tooltip = "Make it krispy";
+    ui_category = "Overall";
+> = true;
+
+uniform bool AntiYellow <
+    ui_label = "Enable Anti-Yellow Filter";
+    ui_tooltip = "Makes Coldwind, Eyrie and DDS a little less piss-colored";
+    ui_category = "Overall";
+> = false;
 
 uniform float3 TargetColor <
     ui_type = "color";
@@ -23,7 +35,7 @@ uniform float ColorLikeness <
     ui_category = "Red Enhancement";
     ui_min = 0.05; ui_max = 0.5;
     ui_step = 0.01;
-> = 0.35;
+> = 0.4;
 
 uniform float RedSaturationBoost <
     ui_type = "slider";
@@ -32,7 +44,7 @@ uniform float RedSaturationBoost <
     ui_category = "Red Enhancement";
     ui_min = 1.0; ui_max = 3.0;
     ui_step = 0.01;
-> = 1.3;
+> = 2.7;
 
 uniform float TargetHueShift <
     ui_type = "slider";
@@ -41,16 +53,16 @@ uniform float TargetHueShift <
     ui_category = "Hue Shift";
     ui_min = -180.0; ui_max = 180.0;
     ui_step = 1.0;
-> = 170.0;
+> = -43.0;
 
 uniform float HueShiftFalloff <
     ui_type = "slider";
     ui_label = "Hue Shift Smoothness";
-    ui_tooltip = "Determines the logic for edge pixels, higher values are for a smoother shift";
+    ui_tooltip = "Determines the logic for edge pixels, higher values are for a smoother shift. Also higher values make the color more saturated lol, I gotta fix it at some point";
     ui_category = "Hue Shift";
     ui_min = 0.5; ui_max = 3.0;
     ui_step = 0.1;
-> = 1.2;
+> = 1.5;
 
 uniform bool ChromaMode <
     ui_label = "Enable Chroma Mode";
@@ -65,7 +77,7 @@ uniform float ChromaPeriod <
     ui_category = "Hue Shift";
     ui_min = 0.1; ui_max = 10.0;
     ui_step = 0.5;
-> = 2.8;
+> = 5.0;
 
 uniform float timer < source = "timer"; >;
 
@@ -97,12 +109,6 @@ uniform float DashLineOpacity <
     ui_min = 0.1; ui_max = 1.0;
     ui_step = 0.05;
 > = 0.5;
-
-uniform bool sharpyn <
-    ui_label = "Enable sharpening";
-    ui_tooltip = "Make it krispy";
-    ui_category = "Overall";
-> = true;
 
 static const float SHARPNESS_STRENGTH = 1.30;
 static const float SHARPNESS_RADIUS = 0.5;
@@ -183,13 +189,13 @@ float3 PS_BrightnessEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD
     
     // Shadow lift curve that keeps very dark lows dark, but lifts low-mid values
     // Peaks around 0.2-0.4 luminance range, minimal effect on very dark (<0.1) and bright (>0.5)
-    float shadowMask = luma * pow(1.0 - luma, 1.5);
+    float shadowMask = luma * pow(1.0 - luma, 1.8);
     float shadowLift = (Brightness - 1.0) * 4.0;
     color += shadowLift * shadowMask;
     
     // Add subtle 15% contrast boost
-    float midpoint = 0.4;
-    color = (color - midpoint) * 1.10 + midpoint;
+    float midpoint = 0.5;
+    color = (color - midpoint) * 1.15 + midpoint;
     
     return saturate(color);
 }
@@ -246,6 +252,44 @@ float3 PS_RedEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_
     return saturate(color);
 }
 
+// Anti-Yellow Filter
+float3 PS_AntiYellow(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
+{
+    float3 color = tex2D(ReShade::BackBuffer, texcoord).rgb;
+    
+    if (!AntiYellow)
+        return color;
+    
+    float3 hsv = RGB2HSV(color);
+    
+    // Hardcoded values that work well
+    float yellowHueCenter = 0.125;
+    float yellowHueRange = 0.07;
+    float blueTintAmount = 0.2;
+    float brightnessDarken = 0.75; // Reduce brightness to 75%
+    
+    // Calculate distance from yellow hue center
+    float hueDist = abs(hsv.x - yellowHueCenter);
+    
+    // Create mask for yellow colors
+    float yellowMask = 1.0 - saturate(hueDist / yellowHueRange);
+    
+    // Reduce brightness of yellows
+    hsv.z = lerp(hsv.z, hsv.z * brightnessDarken, yellowMask);
+    
+    // Fully desaturate yellow tones
+    hsv.y = lerp(hsv.y, 0.0, yellowMask);
+    
+    // Convert back to RGB
+    color = HSV2RGB(hsv);
+    
+    // Add blue tint to the desaturated yellows (additive)
+    float3 blueTint = float3(0.0, 0.0, blueTintAmount);
+    color += blueTint * yellowMask;
+    
+    return saturate(color);
+}
+
 // Sharpening
 float3 PS_Sharpen(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
 {
@@ -271,7 +315,7 @@ float3 PS_Sharpen(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Tar
         float3 sharp = color - blur;
         sharp = clamp(sharp, -SHARPNESS_CLAMP, SHARPNESS_CLAMP);
         
-        color = saturate(color + 0.7 * sharp * SHARPNESS_STRENGTH);
+        color = saturate(color + sharp * SHARPNESS_STRENGTH);
     }
     
     return color;
@@ -410,24 +454,30 @@ technique all_u_need_4_dbd_by_misha<
     ui_tooltip = "Comprehensive shader for Dead by Daylight by Misha \"Moscow Ghoul\""; 
 >
 {
-    pass BrightnessEnhancement
-    {
-        VertexShader = PostProcessVS;
-        PixelShader = PS_BrightnessEnhance;
-    }
-    
     pass RedEnhancement
     {
         VertexShader = PostProcessVS;
         PixelShader = PS_RedEnhance;
     }
-    
+
+    pass BrightnessEnhancement
+    {
+        VertexShader = PostProcessVS;
+        PixelShader = PS_BrightnessEnhance;
+    }
+        
     pass Sharpening
     {
         VertexShader = PostProcessVS;
         PixelShader = PS_Sharpen;
     }
-    
+
+    pass AntiYellowFilter
+    {
+        VertexShader = PostProcessVS;
+        PixelShader = PS_AntiYellow;
+    }
+
     pass Crosshair
     {
         VertexShader = PostProcessVS;
