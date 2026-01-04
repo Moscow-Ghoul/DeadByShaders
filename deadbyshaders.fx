@@ -74,12 +74,6 @@ uniform bool ShowCrosshair <
     ui_category = "Crosshairs";
 > = false;
 
-uniform float3 CrosshairColor <
-    ui_type = "color";
-    ui_label = "Crosshair Color";
-    ui_category = "Crosshairs";
-> = float3(1.0, 1.0, 1.0);
-
 uniform bool ShowHuntressCrosshair <
     ui_label = "Show Huntress Crosshair";
     ui_category = "Crosshairs";
@@ -90,6 +84,12 @@ uniform bool ShowDashLine <
     ui_category = "Crosshairs";
 > = false;
 
+uniform float3 CrosshairColor <
+    ui_type = "color";
+    ui_label = "Crosshair Color";
+    ui_category = "Crosshairs";
+> = float3(1.0, 1.0, 1.0);
+
 uniform float DashLineOpacity <
     ui_type = "slider";
     ui_label = "Wesker Crosshair Opacity";
@@ -98,16 +98,10 @@ uniform float DashLineOpacity <
     ui_step = 0.05;
 > = 0.5;
 
-uniform float3 DashLineColor <
-    ui_type = "color";
-    ui_label = "Wesker Crosshair Color";
-    ui_tooltip = "Color of the Wesker crosshair";
-    ui_category = "Crosshairs";
-> = float3(1.0, 1.0, 1.0);
-
 uniform bool sharpyn <
     ui_label = "Enable sharpening";
     ui_tooltip = "Make it krispy";
+    ui_category = "Overall";
 > = true;
 
 static const float SHARPNESS_STRENGTH = 1.30;
@@ -405,7 +399,7 @@ float3 PS_DashLine(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Ta
         
         // Combine both softness factors
         float lineOpacity = DashLineOpacity * (1.0 - softEdge) * topFade;
-        color = lerp(color, DashLineColor, lineOpacity);
+        color = lerp(color, CrosshairColor, lineOpacity);
     }
     
     return color;
