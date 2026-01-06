@@ -270,9 +270,9 @@ float3 PS_AntiGreen(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_T
     
     // Use adjustable green hue target
     float greenHueCenter = 0.3;
-    float greenHueRange = 0.08;
-    float orangeTintAmount = 0.10;
-    float brightnessDarken = 0.90;
+    float greenHueRange = 0.1;
+    float orangeTintAmount = 0.1;
+    float brightnessDarken = 0.85;
     
     // Calculate distance from green hue center
     float hueDist = abs(hsv.x - greenHueCenter);
@@ -308,9 +308,9 @@ float3 PS_AntiYellow(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_
     
     // Hardcoded values that work well
     float yellowHueCenter = 0.125;
-    float yellowHueRange = 0.07;
-    float blueTintAmount = 0.2;
-    float brightnessDarken = 0.75; // Reduce brightness to 75%
+    float yellowHueRange = 0.1;
+    float blueTintAmount = 0.1;
+    float brightnessDarken = 0.85;
     
     // Calculate distance from yellow hue center
     float hueDist = abs(hsv.x - yellowHueCenter);
