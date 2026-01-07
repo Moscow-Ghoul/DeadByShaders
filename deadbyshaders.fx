@@ -50,14 +50,11 @@ uniform float ColorLikeness <
     ui_step = 0.01;
 > = 0.4;
 
-uniform float SaturationBoost <
-    ui_type = "slider";
-    ui_label = "Saturation Boost";
-    ui_tooltip = "How much to boost saturation beyond the desired color's saturation";
+uniform bool VividMode <
+    ui_label = "Enable Vivid Mode";
+    ui_tooltip = "Make colors more saturated and easier to notice";
     ui_category = "Red Enhancement + colorshift";
-    ui_min = 1.0; ui_max = 3.0;
-    ui_step = 0.01;
-> = 1.0;
+> = false;
 
 uniform float HueShiftFalloff <
     ui_type = "slider";
@@ -139,7 +136,8 @@ float3 HSV2RGB(float3 hsv)
     return hsv.z * lerp(K.xxx, saturate(p - K.xxx), hsv.y);
 }
 
-float GetColorMask(float3 color, float3 target, float likeness)
+// Helper function to calculate mask for a single color (no spatial check)
+float CalculateColorMask(float3 color, float3 target, float likeness)
 {
     // Convert both colors to HSV
     float3 colorHSV = RGB2HSV(color);
@@ -180,7 +178,37 @@ float GetColorMask(float3 color, float3 target, float likeness)
     float mask = saturate(1.0 - (totalDist / threshold));
     
     // Apply power curve to make falloff more aggressive
-    return pow(mask, 1.2);
+    mask = pow(mask, 1.2);
+    
+    return mask;
+}
+
+// Main mask function with spatial coherence check
+float GetColorMask(float3 color, float3 target, float likeness, float2 texcoord)
+{
+    // Calculate base mask for current pixel
+    float mask = CalculateColorMask(color, target, likeness);
+    
+    // Spatial coherence check - only apply if we have some mask value
+    if (mask > 0.01)
+    {
+        // Sample neighboring pixels
+        float2 pixelSize = ReShade::PixelSize;
+        float neighborMask = 0.0;
+        
+        // Sample directly using CalculateColorMask (not GetColorMask to avoid recursion)
+        neighborMask += CalculateColorMask(tex2D(ReShade::BackBuffer, texcoord + float2(-pixelSize.x, 0)).rgb, target, likeness);
+        neighborMask += CalculateColorMask(tex2D(ReShade::BackBuffer, texcoord + float2(pixelSize.x, 0)).rgb, target, likeness);
+        neighborMask += CalculateColorMask(tex2D(ReShade::BackBuffer, texcoord + float2(0, -pixelSize.y)).rgb, target, likeness);
+        neighborMask += CalculateColorMask(tex2D(ReShade::BackBuffer, texcoord + float2(0, pixelSize.y)).rgb, target, likeness);
+        neighborMask /= 4.0;
+        
+        // Require some matching in neighboring pixels
+        if (neighborMask < 0.15) // Adjust this threshold as needed
+            mask *= 0.3; // Significantly reduce mask strength for isolated pixels
+    }
+    
+    return mask;
 }
 
 // Simple Brightness with Contrast Preservation
@@ -211,7 +239,7 @@ float3 PS_RedEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_
     float3 originalColor = color;
     
     // Get color similarity mask
-    float colorMask = GetColorMask(color, TargetColor, ColorLikeness);
+    float colorMask = GetColorMask(color, TargetColor, ColorLikeness, texcoord);
     
     // Only process if there's a significant match
     if (colorMask > 0.01)
@@ -245,12 +273,21 @@ float3 PS_RedEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_
             hsv.x = frac(hsv.x + hueShiftAmount);
         }
         
-        // Match saturation and value to desired color, then apply boost
-        float targetSaturation = desiredHSV.y * SaturationBoost;
+        // Match saturation to desired color
+        float targetSaturation = desiredHSV.y;
+        
+        // Apply vivid mode if enabled (boost saturation significantly)
+        if (VividMode)
+        {
+            // Boost saturation by 2.5x for vivid mode
+            targetSaturation = saturate(desiredHSV.y * 2.5);
+        }
+        
         hsv.y = saturate(targetSaturation);
         
-        // Match value/brightness to desired color
-        hsv.z = saturate(desiredHSV.z);
+        // PRESERVE ORIGINAL VALUE but apply 15% brightness boost
+        // This makes scratchmarks brighter than the desired color
+        hsv.z = saturate(hsv.z * 1.15); // 15% brightness boost
         
         // Convert back to RGB
         float3 shiftedColor = HSV2RGB(hsv);
