@@ -50,12 +50,6 @@ uniform float ColorLikeness <
     ui_step = 0.01;
 > = 0.4;
 
-uniform bool VividMode <
-    ui_label = "Enable Vivid Mode";
-    ui_tooltip = "Make colors more saturated and easier to notice";
-    ui_category = "Red Enhancement + colorshift";
-> = false;
-
 uniform float HueShiftFalloff <
     ui_type = "slider";
     ui_label = "Hue Shift Smoothness";
@@ -276,18 +270,9 @@ float3 PS_RedEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_
         // Match saturation to desired color
         float targetSaturation = desiredHSV.y;
         
-        // Apply vivid mode if enabled (boost saturation significantly)
-        if (VividMode)
-        {
-            // Boost saturation by 2.5x for vivid mode
-            targetSaturation = saturate(desiredHSV.y * 2.5);
-        }
-        
         hsv.y = saturate(targetSaturation);
         
-        // PRESERVE ORIGINAL VALUE but apply 15% brightness boost
-        // This makes scratchmarks brighter than the desired color
-        hsv.z = saturate(hsv.z * 1.15); // 15% brightness boost
+        hsv.z = saturate(hsv.z * 1.15);
         
         // Convert back to RGB
         float3 shiftedColor = HSV2RGB(hsv);
