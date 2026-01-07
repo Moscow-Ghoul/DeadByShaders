@@ -34,6 +34,13 @@ uniform float3 TargetColor <
     ui_category = "Red Enhancement + colorshift";
 > = float3(1.0, 0.392157, 0.392157);
 
+uniform float3 DesiredColor <
+    ui_type = "color";
+    ui_label = "Desired Color";
+    ui_tooltip = "Pick the color you want reds to become";
+    ui_category = "Red Enhancement + colorshift";
+> = float3(1.0, 0.392157, 0.392157);
+
 uniform float ColorLikeness <
     ui_type = "slider";
     ui_label = "Color Likeness";
@@ -43,23 +50,14 @@ uniform float ColorLikeness <
     ui_step = 0.01;
 > = 0.4;
 
-uniform float RedSaturationBoost <
+uniform float SaturationBoost <
     ui_type = "slider";
     ui_label = "Saturation Boost";
-    ui_tooltip = "How acidic do you want your scratchies to be?";
+    ui_tooltip = "How much to boost saturation beyond the desired color's saturation";
     ui_category = "Red Enhancement + colorshift";
     ui_min = 1.0; ui_max = 3.0;
     ui_step = 0.01;
-> = 2.7;
-
-uniform float TargetHueShift <
-    ui_type = "slider";
-    ui_label = "Target Color Hue Shift";
-    ui_tooltip = "Determines the outcome color; think of it as the number of degrees by which you shift the color wheel";
-    ui_category = "Red Enhancement + colorshift";
-    ui_min = -180.0; ui_max = 180.0;
-    ui_step = 1.0;
-> = -43.0;
+> = 1.0;
 
 uniform float HueShiftFalloff <
     ui_type = "slider";
@@ -219,9 +217,16 @@ float3 PS_RedEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_
     if (colorMask > 0.01)
     {
         float3 hsv = RGB2HSV(color);
+        float3 desiredHSV = RGB2HSV(DesiredColor);
         
-        // Determine hue shift amount
-        float hueShift = TargetHueShift;
+        // Determine hue shift amount based on desired color
+        float targetHueShift = desiredHSV.x - RGB2HSV(TargetColor).x;
+        
+        // Adjust for circular hue space
+        if (targetHueShift > 0.5) targetHueShift -= 1.0;
+        if (targetHueShift < -0.5) targetHueShift += 1.0;
+        
+        float hueShift = targetHueShift * 360.0; // Convert to degrees for consistency
         
         // Override with chroma mode if enabled
         if (ChromaMode)
@@ -240,11 +245,12 @@ float3 PS_RedEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_
             hsv.x = frac(hsv.x + hueShiftAmount);
         }
         
-        // Enhance saturation for matching colors
-        hsv.y = saturate(hsv.y * RedSaturationBoost);
+        // Match saturation and value to desired color, then apply boost
+        float targetSaturation = desiredHSV.y * SaturationBoost;
+        hsv.y = saturate(targetSaturation);
         
-        // Boost brightness/value slightly for better visibility
-        hsv.z = saturate(hsv.z * 1.15);
+        // Match value/brightness to desired color
+        hsv.z = saturate(desiredHSV.z);
         
         // Convert back to RGB
         float3 shiftedColor = HSV2RGB(hsv);
