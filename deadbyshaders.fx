@@ -571,12 +571,6 @@ technique all_u_need_4_dbd_by_misha<
     ui_tooltip = "Comprehensive shader for Dead by Daylight by Misha \"Moscow Ghoul\""; 
 >
 {
-    pass Sharpening
-    {
-        VertexShader = PostProcessVS;
-        PixelShader = PS_Sharpen;
-    }
-
     pass AntiGreenFilter
     {
         VertexShader = PostProcessVS;
@@ -600,7 +594,13 @@ technique all_u_need_4_dbd_by_misha<
         VertexShader = PostProcessVS;
         PixelShader = PS_BrightnessEnhance;
     }
-        
+
+    pass Sharpening
+    {
+        VertexShader = PostProcessVS;
+        PixelShader = PS_Sharpen;
+    }        
+
     pass Crosshair
     {
         VertexShader = PostProcessVS;
