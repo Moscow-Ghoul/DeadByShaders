@@ -23,38 +23,38 @@ uniform bool AntiYellow <
 
 uniform bool AntiGreen <
     ui_label = "Enable Anti-Green Filter";
-    ui_tooltip = "Makes Autoheaven less sickly-looking (why do i even  have to do this, bhvr, it was fine before)";
+    ui_tooltip = "Makes Autoheaven less sickly-looking (why do i even have to do this, bhvr, it was fine before)";
     ui_category = "Overall";
 > = false;
 
 uniform float3 TargetColor <
     ui_type = "color";
     ui_label = "Target Color";
-    ui_tooltip = "Pick the exact color you want to enhance (e.g., scratch marks, blood)";
-    ui_category = "Red Enhancement + colorshift";
+    ui_tooltip = "Pick the exact color you want to replace (e.g., scratch marks, blood)";
+    ui_category = "Color Replacement";
 > = float3(1.0, 0.392157, 0.392157);
 
 uniform float3 DesiredColor <
     ui_type = "color";
     ui_label = "Desired Color";
-    ui_tooltip = "Pick the color you want reds to become";
-    ui_category = "Red Enhancement + colorshift";
+    ui_tooltip = "Pick the color you want target colors to become";
+    ui_category = "Color Replacement";
 > = float3(1.0, 0.392157, 0.392157);
 
 uniform float ColorLikeness <
     ui_type = "slider";
-    ui_label = "Color Likeness";
-    ui_tooltip = "Determines how similar a color can be to the target color in order to be changed, lesser values are more strict and greater values are more inclusive";
-    ui_category = "Red Enhancement + colorshift";
+    ui_label = "Color Similarity";
+    ui_tooltip = "How similar a color must be to the target to be replaced (lower = more strict)";
+    ui_category = "Color Replacement";
     ui_min = 0.05; ui_max = 0.5;
     ui_step = 0.01;
 > = 0.4;
 
-uniform float HueShiftFalloff <
+uniform float BlendStrength <
     ui_type = "slider";
-    ui_label = "Hue Shift Smoothness";
-    ui_tooltip = "Determines the logic for edge pixels, higher values are for a smoother shift. Also higher values make the color more saturated lol, I gotta fix it at some point";
-    ui_category = "Red Enhancement + colorshift";
+    ui_label = "Blend Strength";
+    ui_tooltip = "How strongly to apply the color replacement";
+    ui_category = "Color Replacement";
     ui_min = 0.5; ui_max = 3.0;
     ui_step = 0.1;
 > = 1.5;
@@ -62,14 +62,14 @@ uniform float HueShiftFalloff <
 uniform bool ChromaMode <
     ui_label = "Enable Chroma Mode";
     ui_tooltip = "Automatically cycle through hue shifts (rainbow effect)";
-    ui_category = "Red Enhancement + colorshift";
+    ui_category = "Color Replacement";
 > = false;
 
 uniform float ChromaPeriod <
     ui_type = "slider";
     ui_label = "Chroma Cycle Speed";
     ui_tooltip = "Time in seconds for one full color cycle";
-    ui_category = "Red Enhancement + colorshift";
+    ui_category = "Color Replacement";
     ui_min = 0.1; ui_max = 10.0;
     ui_step = 0.5;
 > = 5.0;
@@ -130,7 +130,7 @@ float3 HSV2RGB(float3 hsv)
     return hsv.z * lerp(K.xxx, saturate(p - K.xxx), hsv.y);
 }
 
-// Helper function to calculate mask for a single color (no spatial check)
+// Helper function to calculate mask for a single color
 float CalculateColorMask(float3 color, float3 target, float likeness)
 {
     // Convert both colors to HSV
@@ -142,7 +142,6 @@ float CalculateColorMask(float3 color, float3 target, float likeness)
     if (hueDist > 0.5) hueDist = 1.0 - hueDist;
     
     // STRICT HUE FILTER: Only process colors close to the target hue
-    // Define a tight hue range around the target color (about ±0.05 or ~18 degrees)
     float hueRange = 0.075;
     bool isMatchingHue = (hueDist < hueRange);
     
@@ -151,7 +150,6 @@ float CalculateColorMask(float3 color, float3 target, float likeness)
         return 0.0;
     
     // For colors in target hue range, require minimum saturation
-    // This filters out desaturated/grayish colors
     float minSaturation = 0.1;
     if (colorHSV.y < minSaturation)
         return 0.0;
@@ -183,26 +181,50 @@ float GetColorMask(float3 color, float3 target, float likeness, float2 texcoord)
     // Calculate base mask for current pixel
     float mask = CalculateColorMask(color, target, likeness);
     
-    // Spatial coherence check - only apply if we have some mask value
-    if (mask > 0.01)
+    // Early exit for no match
+    if (mask < 0.01)
+        return 0.0;
+    
+    // Sample neighboring pixels for edge detection
+    float2 pixelSize = ReShade::PixelSize;
+    
+    // Get neighbor colors
+    float3 left = tex2D(ReShade::BackBuffer, texcoord + float2(-pixelSize.x, 0)).rgb;
+    float3 right = tex2D(ReShade::BackBuffer, texcoord + float2(pixelSize.x, 0)).rgb;
+    float3 up = tex2D(ReShade::BackBuffer, texcoord + float2(0, -pixelSize.y)).rgb;
+    float3 down = tex2D(ReShade::BackBuffer, texcoord + float2(0, pixelSize.y)).rgb;
+    
+    // Calculate neighbor masks
+    float leftMask = CalculateColorMask(left, target, likeness);
+    float rightMask = CalculateColorMask(right, target, likeness);
+    float upMask = CalculateColorMask(up, target, likeness);
+    float downMask = CalculateColorMask(down, target, likeness);
+    
+    // Average neighbor mask
+    float neighborMask = (leftMask + rightMask + upMask + downMask) / 4.0;
+    
+    // Edge detection based on color differences
+    float colorDiff = 0.0;
+    colorDiff += length(color - left);
+    colorDiff += length(color - right);
+    colorDiff += length(color - up);
+    colorDiff += length(color - down);
+    colorDiff /= 4.0;
+    
+    // If pixel is on an edge (high color difference with neighbors)
+    // and neighbors don't match the target, reduce mask strength
+    if (colorDiff > 0.15 && neighborMask < 0.3)
     {
-        // Sample neighboring pixels
-        float2 pixelSize = ReShade::PixelSize;
-        float neighborMask = 0.0;
-        
-        // Sample directly using CalculateColorMask (not GetColorMask to avoid recursion)
-        neighborMask += CalculateColorMask(tex2D(ReShade::BackBuffer, texcoord + float2(-pixelSize.x, 0)).rgb, target, likeness);
-        neighborMask += CalculateColorMask(tex2D(ReShade::BackBuffer, texcoord + float2(pixelSize.x, 0)).rgb, target, likeness);
-        neighborMask += CalculateColorMask(tex2D(ReShade::BackBuffer, texcoord + float2(0, -pixelSize.y)).rgb, target, likeness);
-        neighborMask += CalculateColorMask(tex2D(ReShade::BackBuffer, texcoord + float2(0, pixelSize.y)).rgb, target, likeness);
-        neighborMask /= 4.0;
-        
-        // Require some matching in neighboring pixels
-        if (neighborMask < 0.15) // Adjust this threshold as needed
-            mask *= 0.3; // Significantly reduce mask strength for isolated pixels
+        // Strong edge penalty
+        mask *= 0.2;
+    }
+    // If pixel has some matching neighbors, boost mask slightly
+    else if (neighborMask > 0.1)
+    {
+        mask = lerp(mask, 1.0, 0.1);
     }
     
-    return mask;
+    return saturate(mask);
 }
 
 // Simple Brightness with Contrast Preservation
@@ -226,7 +248,7 @@ float3 PS_BrightnessEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD
     return saturate(color);
 }
 
-// Color Enhancement and Hue Shift
+// Smart Color Replacement
 float3 PS_RedEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
 {
     float3 color = tex2D(ReShade::BackBuffer, texcoord).rgb;
@@ -238,49 +260,72 @@ float3 PS_RedEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_
     // Only process if there's a significant match
     if (colorMask > 0.01)
     {
-        float3 hsv = RGB2HSV(color);
+        // Calculate original pixel properties
+        float originalLuminance = dot(color, float3(0.2126, 0.7152, 0.0722));
+        float3 originalHSV = RGB2HSV(color);
+        
+        // Desired color properties
+        float desiredLuminance = dot(DesiredColor, float3(0.2126, 0.7152, 0.0722));
         float3 desiredHSV = RGB2HSV(DesiredColor);
         
-        // Determine hue shift amount based on desired color
-        float targetHueShift = desiredHSV.x - RGB2HSV(TargetColor).x;
-        
-        // Adjust for circular hue space
-        if (targetHueShift > 0.5) targetHueShift -= 1.0;
-        if (targetHueShift < -0.5) targetHueShift += 1.0;
-        
-        float hueShift = targetHueShift * 360.0; // Convert to degrees for consistency
-        
-        // Override with chroma mode if enabled
+        // For Chroma Mode, override hue
         if (ChromaMode)
         {
-            // Convert timer from milliseconds to seconds and create cycling value
             float timeInSeconds = timer * 0.001;
             float cycle = frac(timeInSeconds / ChromaPeriod);
-            // Map 0-1 to -180 to +180 degrees
-            hueShift = (cycle * 360.0) - 180.0;
+            desiredHSV.x = cycle;
         }
         
-        // Apply hue shift
-        if (abs(hueShift) > 0.1)
+        // Check if desired color is grayscale
+        bool desiredIsGray = desiredHSV.y < 0.01;
+        
+        if (desiredIsGray)
         {
-            float hueShiftAmount = (hueShift / 360.0);
-            hsv.x = frac(hsv.x + hueShiftAmount);
+            // For grayscale replacement, preserve luminance details
+            // Scale desired color based on original pixel brightness
+            float luminanceFactor = originalLuminance / max(desiredLuminance, 0.001);
+            luminanceFactor = clamp(luminanceFactor, 0.5, 2.0);
+            
+            // Apply the desired color with brightness adjustment
+            float3 result = DesiredColor * luminanceFactor;
+            
+            // Blend with original based on mask strength
+            color = lerp(color, result, colorMask * BlendStrength);
         }
-        
-        // Match saturation to desired color
-        float targetSaturation = desiredHSV.y;
-        
-        hsv.y = saturate(targetSaturation);
-        
-        hsv.z = saturate(hsv.z * 1.15);
-        
-        // Convert back to RGB
-        float3 shiftedColor = HSV2RGB(hsv);
-        
-        // Mix shifted color with original based on mask strength and falloff
-        // This prevents rainbow artifacts at edges
-        float mixAmount = colorMask * HueShiftFalloff;
-        color = lerp(originalColor, shiftedColor, mixAmount);
+        else
+        {
+            // For colored replacement
+            // Start with the exact desired color
+            float3 result = DesiredColor;
+            
+            // Preserve some of the original brightness for texture
+            float brightnessPreservation = 0.4;
+            float targetBrightness = desiredHSV.z;
+            float blendedBrightness = lerp(originalHSV.z, targetBrightness, 1.0 - brightnessPreservation);
+            
+            // Convert desired color to HSV for brightness adjustment
+            float3 desiredHSVAdjusted = desiredHSV;
+            desiredHSVAdjusted.z = blendedBrightness;
+            result = HSV2RGB(desiredHSVAdjusted);
+            
+            // Use overlay blending for better texture integration
+            if (originalLuminance > 0.5)
+            {
+                // Screen blend for bright areas
+                float3 screenBlend = 1.0 - (1.0 - result) * (1.0 - color);
+                result = lerp(result, screenBlend, 0.4);
+            }
+            else
+            {
+                // Multiply blend for dark areas
+                float3 multiplyBlend = result * color * 1.5;
+                result = lerp(result, multiplyBlend, 0.4);
+            }
+            
+            // Final blend with original
+            float blendAmount = colorMask * BlendStrength;
+            color = lerp(originalColor, result, blendAmount);
+        }
     }
     
     return saturate(color);
@@ -544,7 +589,7 @@ technique all_u_need_4_dbd_by_misha<
         PixelShader = PS_AntiYellow;
     }
 
-    pass RedEnhancement
+    pass ColorReplacement
     {
         VertexShader = PostProcessVS;
         PixelShader = PS_RedEnhance;
