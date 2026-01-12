@@ -116,8 +116,8 @@ static const float SHARPNESS_CLAMP = 0.3;
 static const float CrosshairThickness = 1.0;
 static const float CrosshairSize = 5.0;
 static const float HuntressCrosshairVerticalOffset = 0.527;
-static const float BLOOM_INTENSITY = 15.0;
-static const float BLOOM_RADIUS = 4.0;
+static const float BLOOM_INTENSITY = 10.0;
+static const float BLOOM_RADIUS = 3.0;
 
 
 texture BloomMaskTex { Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = R8; };
@@ -262,8 +262,8 @@ float3 PS_RedEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_
     float colorMask = GetColorMask(color, TargetColor, ColorLikeness);
     
  
-    float saturationBoost = VibrantMode ? 2.7 : 1.5;
-    float hueShiftFalloff = VibrantMode ? 2.7 : 1.5;
+    float saturationBoost = VibrantMode ? 2.7 : 1.3;
+    float hueShiftFalloff = VibrantMode ? 2.7 : 1.3;
     
     if (colorMask > 0.01)
     {
