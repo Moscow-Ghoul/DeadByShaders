@@ -139,6 +139,8 @@ sampler BloomHorizontalSampler {
     MagFilter = LINEAR;
 };
 
+texture ColorMaskTex { Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = R8; };
+sampler ColorMaskSampler { Texture = ColorMaskTex; };
 
 float cheapDither(float2 uv) {
     return frac(sin(dot(uv, float2(12.9898, 78.233))) * 43758.5453);
@@ -226,6 +228,11 @@ float PS_GenerateBloomMask(float4 pos : SV_Position, float2 texcoord : TEXCOORD)
     return colorMask;
 }
 
+float PS_StoreColorMask(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
+{
+    float3 color = tex2D(ReShade::BackBuffer, texcoord).rgb;
+    return GetColorMask(color, TargetColor, ColorLikeness);
+}
 
 float4 PS_StoreEnhancedColors(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
 {
@@ -233,15 +240,14 @@ float4 PS_StoreEnhancedColors(float4 pos : SV_Position, float2 texcoord : TEXCOO
         return float4(0.0, 0.0, 0.0, 0.0);
         
     float3 color = tex2D(ReShade::BackBuffer, texcoord).rgb;
-    float colorMask = GetColorMask(color, TargetColor, ColorLikeness);
+    float colorMask = tex2D(ColorMaskSampler, texcoord).r; // Use pre-stored mask
     
     float dither = cheapDither(texcoord);
-    float threshold = 0.15 + (dither - 0.5) * 0.09; // ±9% threshold variation
+    float threshold = 0.15 + (dither - 0.5) * 0.09;
     
     if (colorMask > threshold)
     {
         float smoothMask = pow((colorMask - threshold) / (1.0 - threshold), 3.0);
-        
         return float4(color * smoothMask, smoothMask);
     }
     
@@ -563,14 +569,21 @@ technique all_u_need_4_dbd_by_misha<
         VertexShader = PostProcessVS;
         PixelShader = PS_AntiYellow;
     }
+    
+    pass StoreColorMask  // NEW: Store mask BEFORE hue shift
+    {
+        VertexShader = PostProcessVS;
+        PixelShader = PS_StoreColorMask;
+        RenderTarget = ColorMaskTex;
+    }
 
-    pass RedEnhancement
+    pass RedEnhancement  // Apply hue shift
     {
         VertexShader = PostProcessVS;
         PixelShader = PS_RedEnhance;
     }
     
-    pass StoreEnhancedColors
+    pass StoreEnhancedColors  // Now uses pre-stored mask on shifted colors
     {
         VertexShader = PostProcessVS;
         PixelShader = PS_StoreEnhancedColors;
