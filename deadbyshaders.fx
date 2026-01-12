@@ -7,7 +7,7 @@ uniform float Brightness <
     ui_category = "Overall";
     ui_min = 0.8; ui_max = 1.5;
     ui_step = 0.01;
-> = 1.25;
+> = 1.15;
 
 uniform bool sharpyn <
     ui_label = "Enable sharpening";
@@ -27,17 +27,19 @@ uniform bool AntiGreen <
     ui_category = "Overall";
 > = false;
 
-uniform bool VibrantMode <
-    ui_label = "Enable Vivid";
-    ui_tooltip = "Makes colors more saturated, duh";
-    ui_category = "Overall";
-> = false;
+//uniform bool VibrantMode <
+//    ui_label = "Enable Vivid";
+//    ui_tooltip = "Makes colors more saturated, duh";
+//    ui_category = "Overall";
+//> = false;
+
+static const bool VibrantMode = false;
 
 uniform bool EnableBloom <
     ui_label = "Enable Bloom";
     ui_tooltip = "Add a glowing effect to your scratchies";
     ui_category = "Overall";
-> = false;
+> = true;
 
 uniform float3 TargetColor <
     ui_type = "color";
@@ -53,7 +55,7 @@ uniform float ColorLikeness <
     ui_category = "Red Enhancement + colorshift";
     ui_min = 0.05; ui_max = 0.5;
     ui_step = 0.01;
-> = 0.4;
+> = 0.3;
 
 uniform float TargetHueShift <
     ui_type = "slider";
@@ -62,7 +64,7 @@ uniform float TargetHueShift <
     ui_category = "Red Enhancement + colorshift";
     ui_min = -180.0; ui_max = 180.0;
     ui_step = 1.0;
-> = -43.0;
+> = 180.0;
 
 uniform bool ChromaMode <
     ui_label = "Enable Chroma Mode";
@@ -116,8 +118,8 @@ static const float SHARPNESS_CLAMP = 0.3;
 static const float CrosshairThickness = 1.0;
 static const float CrosshairSize = 5.0;
 static const float HuntressCrosshairVerticalOffset = 0.527;
-static const float BLOOM_INTENSITY = 6.0;
-static const float BLOOM_RADIUS = 2.0;
+static const float BLOOM_INTENSITY = 5.0;
+static const float BLOOM_RADIUS = 1.5;
 
 
 texture BloomMaskTex { Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = R8; };
@@ -184,11 +186,11 @@ float GetColorMask(float3 color, float3 target, float likeness)
     if (!isMatchingHue)
         return 0.0;
     
-    float minSaturation = 0.1;
+    float minSaturation = 0.0;
     if (colorHSV.y < minSaturation)
         return 0.0;
     
-    float satDist = abs(colorHSV.y - targetHSV.y) * 0.7;
+    float satDist = abs(colorHSV.y - targetHSV.y) * 0.5;
     
     float valDist = abs(colorHSV.z - targetHSV.z) * 0.15;
     
@@ -262,8 +264,8 @@ float3 PS_RedEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_
     float colorMask = GetColorMask(color, TargetColor, ColorLikeness);
     
  
-    float saturationBoost = VibrantMode ? 2.7 : 1.3;
-    float hueShiftFalloff = VibrantMode ? 2.7 : 1.3;
+    float saturationBoost = VibrantMode ? 2.7 : 1.1;
+    float hueShiftFalloff = VibrantMode ? 2.7 : 1.2;
     
     if (colorMask > 0.01)
     {
@@ -286,7 +288,7 @@ float3 PS_RedEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_
         
         hsv.y = saturate(hsv.y * saturationBoost);
         
-        hsv.z = saturate(hsv.z * 1.2);
+        hsv.z = saturate(hsv.z * 1.01);
         
         float3 shiftedColor = HSV2RGB(hsv);
 
@@ -373,9 +375,9 @@ float3 PS_AntiGreen(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_T
     float3 hsv = RGB2HSV(color);
     
     float greenHueCenter = 0.3;
-    float greenHueRange = 0.1;
-    float orangeTintAmount = 0.1;
-    float brightnessDarken = 0.85;
+    float greenHueRange = 0.15;
+    float orangeTintAmount = 0.15;
+    float brightnessDarken = 0.80;
     
     float hueDist = abs(hsv.x - greenHueCenter);
     
