@@ -116,8 +116,8 @@ static const float SHARPNESS_CLAMP = 0.3;
 static const float CrosshairThickness = 1.0;
 static const float CrosshairSize = 5.0;
 static const float HuntressCrosshairVerticalOffset = 0.527;
-static const float BLOOM_INTENSITY = 8.0;
-static const float BLOOM_RADIUS = 3.0;
+static const float BLOOM_INTENSITY = 6.0;
+static const float BLOOM_RADIUS = 2.0;
 
 
 texture BloomMaskTex { Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = R8; };
