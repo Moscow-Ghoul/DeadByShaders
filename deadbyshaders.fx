@@ -27,6 +27,18 @@ uniform bool AntiGreen <
     ui_category = "Overall";
 > = false;
 
+uniform bool VibrantMode <
+    ui_label = "Enable Vivid";
+    ui_tooltip = "Makes colors more saturated, duh";
+    ui_category = "Overall";
+> = false;
+
+uniform bool EnableBloom <
+    ui_label = "Enable Bloom";
+    ui_tooltip = "Add a glowing effect to your scratchies";
+    ui_category = "Overall";
+> = false;
+
 uniform float3 TargetColor <
     ui_type = "color";
     ui_label = "Target Color";
@@ -43,15 +55,6 @@ uniform float ColorLikeness <
     ui_step = 0.01;
 > = 0.4;
 
-uniform float RedSaturationBoost <
-    ui_type = "slider";
-    ui_label = "Saturation Boost";
-    ui_tooltip = "How acidic do you want your scratchies to be?";
-    ui_category = "Red Enhancement + colorshift";
-    ui_min = 1.0; ui_max = 3.0;
-    ui_step = 0.01;
-> = 2.7;
-
 uniform float TargetHueShift <
     ui_type = "slider";
     ui_label = "Target Color Hue Shift";
@@ -60,15 +63,6 @@ uniform float TargetHueShift <
     ui_min = -180.0; ui_max = 180.0;
     ui_step = 1.0;
 > = -43.0;
-
-uniform float HueShiftFalloff <
-    ui_type = "slider";
-    ui_label = "Hue Shift Smoothness";
-    ui_tooltip = "Determines the logic for edge pixels, higher values are for a smoother shift. Also higher values make the color more saturated lol, I gotta fix it at some point";
-    ui_category = "Red Enhancement + colorshift";
-    ui_min = 0.5; ui_max = 3.0;
-    ui_step = 0.1;
-> = 1.5;
 
 uniform bool ChromaMode <
     ui_label = "Enable Chroma Mode";
@@ -110,7 +104,7 @@ uniform float3 CrosshairColor <
 
 uniform float DashLineOpacity <
     ui_type = "slider";
-    ui_label = "Wesker Crosshair Opacity";
+    ui_label = "Crosshair Opacity";
     ui_category = "Crosshairs";
     ui_min = 0.1; ui_max = 1.0;
     ui_step = 0.05;
@@ -122,6 +116,28 @@ static const float SHARPNESS_CLAMP = 0.3;
 static const float CrosshairThickness = 1.0;
 static const float CrosshairSize = 5.0;
 static const float HuntressCrosshairVerticalOffset = 0.527;
+static const float BLOOM_INTENSITY = 2.0;
+static const float BLOOM_RADIUS = 4.0;
+
+// Texture for storing the bloom mask
+texture BloomMaskTex { Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = R8; };
+sampler BloomMaskSampler { Texture = BloomMaskTex; };
+
+// Texture for storing enhanced colors to be bloomed
+texture EnhancedColorTex { Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = RGBA8; };
+sampler EnhancedColorSampler { 
+    Texture = EnhancedColorTex;
+    MinFilter = LINEAR;
+    MagFilter = LINEAR;
+};
+
+// Intermediate texture for horizontal blur pass
+texture BloomHorizontalTex { Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = RGBA8; };
+sampler BloomHorizontalSampler { 
+    Texture = BloomHorizontalTex;
+    MinFilter = LINEAR;
+    MagFilter = LINEAR;
+};
 
 float3 RGB2HSV(float3 rgb)
 {
@@ -206,6 +222,41 @@ float3 PS_BrightnessEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD
     return saturate(color);
 }
 
+// Generate bloom mask from target colors
+float PS_GenerateBloomMask(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
+{
+    if (!EnableBloom)
+        return 0.0;
+        
+    float3 color = tex2D(ReShade::BackBuffer, texcoord).rgb;
+    float colorMask = GetColorMask(color, TargetColor, ColorLikeness);
+    
+    return colorMask;
+}
+
+// Store enhanced colors for blooming
+float4 PS_StoreEnhancedColors(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
+{
+    if (!EnableBloom)
+        return float4(0.0, 0.0, 0.0, 0.0);
+        
+    float3 color = tex2D(ReShade::BackBuffer, texcoord).rgb;
+    float colorMask = GetColorMask(color, TargetColor, ColorLikeness);
+    
+    // Lower threshold to include more edge pixels
+    float threshold = 0.15;
+    if (colorMask > threshold)
+    {
+        // More aggressive power curve for softer, longer fade
+        // Higher exponent = more gradual falloff at edges
+        float smoothMask = pow((colorMask - threshold) / (1.0 - threshold), 3.0);
+        
+        return float4(color * smoothMask, smoothMask);
+    }
+    
+    return float4(0.0, 0.0, 0.0, 0.0);
+}
+
 // Color Enhancement and Hue Shift
 float3 PS_RedEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
 {
@@ -214,6 +265,10 @@ float3 PS_RedEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_
     
     // Get color similarity mask
     float colorMask = GetColorMask(color, TargetColor, ColorLikeness);
+    
+    // Set values based on Vibrant Mode
+    float saturationBoost = VibrantMode ? 2.7 : 1.5;
+    float hueShiftFalloff = VibrantMode ? 2.7 : 1.5;
     
     // Only process if there's a significant match
     if (colorMask > 0.01)
@@ -241,7 +296,7 @@ float3 PS_RedEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_
         }
         
         // Enhance saturation for matching colors
-        hsv.y = saturate(hsv.y * RedSaturationBoost);
+        hsv.y = saturate(hsv.y * saturationBoost);
         
         // Boost brightness/value slightly for better visibility
         hsv.z = saturate(hsv.z * 1.15);
@@ -251,11 +306,76 @@ float3 PS_RedEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_
         
         // Mix shifted color with original based on mask strength and falloff
         // This prevents rainbow artifacts at edges
-        float mixAmount = colorMask * HueShiftFalloff;
+        float mixAmount = colorMask * hueShiftFalloff;
         color = lerp(originalColor, shiftedColor, mixAmount);
     }
     
     return saturate(color);
+}
+
+// Horizontal blur pass
+float4 PS_BloomHorizontal(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
+{
+    if (!EnableBloom)
+        return float4(0.0, 0.0, 0.0, 0.0);
+    
+    float2 pixelSize = ReShade::PixelSize * BLOOM_RADIUS;
+    float4 bloomAccum = 0.0;
+    float weightSum = 0.0;
+    
+    // 1D Gaussian blur kernel (horizontal only)
+    static const int sampleCount = 13;
+    static const float offsets[13] = { -6.0, -5.0, -4.0, -3.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 };
+    static const float weights[13] = { 0.002, 0.006, 0.014, 0.031, 0.067, 0.124, 0.179, 0.124, 0.067, 0.031, 0.014, 0.006, 0.002 };
+    
+    [unroll]
+    for (int i = 0; i < sampleCount; i++)
+    {
+        float2 offset = float2(offsets[i] * pixelSize.x, 0.0);
+        float weight = weights[i];
+        
+        float4 sampleColor = tex2D(EnhancedColorSampler, texcoord + offset);
+        bloomAccum += sampleColor * weight;
+        weightSum += weight;
+    }
+    
+    return bloomAccum / weightSum;
+}
+
+// Vertical blur pass and apply to scene
+float3 PS_BloomVertical(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
+{
+    float3 color = tex2D(ReShade::BackBuffer, texcoord).rgb;
+    
+    if (!EnableBloom)
+        return color;
+    
+    float2 pixelSize = ReShade::PixelSize * BLOOM_RADIUS;
+    float4 bloomAccum = 0.0;
+    float weightSum = 0.0;
+    
+    // 1D Gaussian blur kernel (vertical only)
+    static const int sampleCount = 13;
+    static const float offsets[13] = { -6.0, -5.0, -4.0, -3.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 };
+    static const float weights[13] = { 0.002, 0.006, 0.014, 0.031, 0.067, 0.124, 0.179, 0.124, 0.067, 0.031, 0.014, 0.006, 0.002 };
+    
+    [unroll]
+    for (int i = 0; i < sampleCount; i++)
+    {
+        float2 offset = float2(0.0, offsets[i] * pixelSize.y);
+        float weight = weights[i];
+        
+        float4 sampleColor = tex2D(BloomHorizontalSampler, texcoord + offset);
+        bloomAccum += sampleColor * weight;
+        weightSum += weight;
+    }
+    
+    float4 bloom = bloomAccum / weightSum;
+    
+    // Add bloom to the scene (additive blending)
+    color = saturate(color + bloom.rgb * BLOOM_INTENSITY);
+    
+    return color;
 }
 
 // Anti-Green Filter
@@ -390,7 +510,7 @@ float3 PS_Crosshair(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_T
     // Draw crosshair
     if (isHorizontal || isVertical)
     {
-        color = CrosshairColor;
+        color = lerp(color, CrosshairColor, DashLineOpacity);
     }
     
     return color;
@@ -421,7 +541,7 @@ float3 PS_HuntressCrosshair(float4 pos : SV_Position, float2 texcoord : TEXCOORD
     // Draw crosshair
     if (isHorizontal || isVertical)
     {
-        color = CrosshairColor;
+        color = lerp(color, CrosshairColor, DashLineOpacity);
     }
     
     return color;
@@ -515,11 +635,38 @@ technique all_u_need_4_dbd_by_misha<
         VertexShader = PostProcessVS;
         PixelShader = PS_RedEnhance;
     }
+    
+    pass StoreEnhancedColors
+    {
+        VertexShader = PostProcessVS;
+        PixelShader = PS_StoreEnhancedColors;
+        RenderTarget = EnhancedColorTex;
+    }
+    
+    pass GenerateBloomMask
+    {
+        VertexShader = PostProcessVS;
+        PixelShader = PS_GenerateBloomMask;
+        RenderTarget = BloomMaskTex;
+    }
 
     pass BrightnessEnhancement
     {
         VertexShader = PostProcessVS;
         PixelShader = PS_BrightnessEnhance;
+    }
+    
+    pass BloomHorizontal
+    {
+        VertexShader = PostProcessVS;
+        PixelShader = PS_BloomHorizontal;
+        RenderTarget = BloomHorizontalTex;
+    }
+    
+    pass BloomVerticalAndApply
+    {
+        VertexShader = PostProcessVS;
+        PixelShader = PS_BloomVertical;
     }
 
     pass Sharpening
