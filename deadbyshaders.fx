@@ -118,7 +118,7 @@ static const float SHARPNESS_CLAMP = 0.3;
 static const float CrosshairThickness = 1.0;
 static const float CrosshairSize = 5.0;
 static const float HuntressCrosshairVerticalOffset = 0.527;
-static const float BLOOM_INTENSITY = 3;
+static const float BLOOM_INTENSITY = 4;
 static const float BLOOM_RADIUS = 1;
 
 
@@ -360,7 +360,10 @@ float3 PS_BloomVertical(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : 
     
     float4 bloom = bloomAccum / weightSum;
     
-    // Add bloom
+    float3 hsv = RGB2HSV(bloom);
+    hsv.y *= 1.2;
+    bloom = HSV2RGB(hsv);
+
     float3 bloomedColor = color + bloom.rgb * BLOOM_INTENSITY;
     
     // Aggressive soft luma limit to prevent whitening while preserving color
@@ -378,11 +381,6 @@ float3 PS_BloomVertical(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : 
         float lumaScale = targetLuma / (bloomedLuma + 0.001);
         bloomedColor *= lumaScale;
     }
-
-    // Saturation compensation for bloom
-    float3 hsv = RGB2HSV(bloomedColor);
-    hsv.y *= 1.25;
-    bloomedColor = HSV2RGB(hsv);
 
     color = saturate(bloomedColor);
     return color;
