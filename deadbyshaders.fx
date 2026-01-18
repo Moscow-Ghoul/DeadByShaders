@@ -27,13 +27,13 @@ uniform bool AntiGreen <
     ui_category = "Overall";
 > = false;
 
-//uniform bool VibrantMode <
-//    ui_label = "Enable Vivid";
-//    ui_tooltip = "Makes colors more saturated, duh";
-//    ui_category = "Overall";
-//> = false;
+uniform bool VibrantMode <
+    ui_label = "Enable Vivid";
+    ui_tooltip = "Makes colors more saturated, duh";
+    ui_category = "Overall";
+> = false;
 
-static const bool VibrantMode = false;
+//static const bool VibrantMode = false;
 
 uniform bool EnableBloom <
     ui_label = "Enable Bloom";
@@ -118,8 +118,8 @@ static const float SHARPNESS_CLAMP = 0.3;
 static const float CrosshairThickness = 1.0;
 static const float CrosshairSize = 5.0;
 static const float HuntressCrosshairVerticalOffset = 0.527;
-static const float BLOOM_INTENSITY = 5.0;
-static const float BLOOM_RADIUS = 1.5;
+static const float BLOOM_INTENSITY = 4.0;
+static const float BLOOM_RADIUS = 2.5;
 
 
 texture BloomMaskTex { Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = R8; };
@@ -152,7 +152,7 @@ float cheapDither(float2 uv) {
 float2 cheapJitter(float2 uv, float seed) {
     float random1 = frac(sin(dot(uv, float2(12.9898, 78.233 + seed))) * 43758.5453);
     float random2 = frac(sin(dot(uv, float2(92.9898, 38.233 + seed))) * 65437.5453);
-    return float2(random1, random2) * 0.1 - 0.15; // ±15% jitter
+    return float2(random1, random2) * 0.1 - 0.15; // Â±15% jitter
 }
 
 float3 RGB2HSV(float3 rgb)
@@ -311,7 +311,7 @@ float4 PS_BloomHorizontal(float4 pos : SV_Position, float2 texcoord : TEXCOORD) 
     
     static const int sampleCount = 13;
     static const float offsets[13] = { -6.0, -5.0, -4.0, -3.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 };
-    static const float weights[13] = { 0.002, 0.006, 0.014, 0.031, 0.067, 0.124, 0.179, 0.124, 0.067, 0.031, 0.014, 0.006, 0.002 };
+    static const float weights[13] = { 0.020, 0.035, 0.055, 0.070, 0.085, 0.095, 0.100, 0.095, 0.085, 0.070, 0.055, 0.035, 0.020 };
     
     [unroll]
     for (int i = 0; i < sampleCount; i++)
@@ -343,7 +343,7 @@ float3 PS_BloomVertical(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : 
     
     static const int sampleCount = 13;
     static const float offsets[13] = { -5.7, -4.7, -3.7, -2.7, -1.7, -0.7, 0.3, 1.3, 2.3, 3.3, 4.3, 5.3, 6.3 };
-    static const float weights[13] = { 0.002, 0.006, 0.014, 0.031, 0.067, 0.124, 0.179, 0.124, 0.067, 0.031, 0.014, 0.006, 0.002 };
+    static const float weights[13] = { 0.020, 0.035, 0.055, 0.070, 0.085, 0.095, 0.100, 0.095, 0.085, 0.070, 0.055, 0.035, 0.020 };
     
     [unroll]
     for (int i = 0; i < sampleCount; i++)
@@ -360,8 +360,31 @@ float3 PS_BloomVertical(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : 
     
     float4 bloom = bloomAccum / weightSum;
     
-    color = saturate(color + bloom.rgb * BLOOM_INTENSITY);
+    // Add bloom
+    float3 bloomedColor = color + bloom.rgb * BLOOM_INTENSITY;
     
+    // Aggressive soft luma limit to prevent whitening while preserving color
+    float originalLuma = dot(color, float3(0.2126, 0.7152, 0.0722));
+    float bloomedLuma = dot(bloomedColor, float3(0.2126, 0.7152, 0.0722));
+    
+    // Only compress if luma increased
+    if (bloomedLuma > originalLuma)
+    {
+        float lumaIncrease = bloomedLuma - originalLuma;
+        float softLimit = 0.7; 
+        float compression = smoothstep(softLimit * 0.35, softLimit, bloomedLuma);
+
+        float targetLuma = originalLuma + lumaIncrease * (1.0 - compression * 0.8);
+        float lumaScale = targetLuma / (bloomedLuma + 0.001);
+        bloomedColor *= lumaScale;
+    }
+
+    // Saturation compensation for bloom
+    float3 hsv = RGB2HSV(bloomedColor);
+    hsv.y *= 1.25;
+    bloomedColor = HSV2RGB(hsv);
+
+    color = saturate(bloomedColor);
     return color;
 }
 
@@ -376,7 +399,7 @@ float3 PS_AntiGreen(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_T
     
     float greenHueCenter = 0.3;
     float greenHueRange = 0.15;
-    float orangeTintAmount = 0.15;
+    float orangeTintAmount = 0.1;
     float brightnessDarken = 0.80;
     
     float hueDist = abs(hsv.x - greenHueCenter);
@@ -560,32 +583,32 @@ technique all_u_need_4_dbd_by_misha<
     ui_tooltip = "Comprehensive shader for Dead by Daylight by Misha \"Moscow Ghoul\""; 
 >
 {
-    pass AntiGreenFilter
+    pass AntiYellowFilter
     {
         VertexShader = PostProcessVS;
         PixelShader = PS_AntiGreen;
     }
 
-    pass AntiYellowFilter
+    pass AntiGreenFilter
     {
         VertexShader = PostProcessVS;
         PixelShader = PS_AntiYellow;
     }
     
-    pass StoreColorMask  // NEW: Store mask BEFORE hue shift
+    pass StoreColorMask
     {
         VertexShader = PostProcessVS;
         PixelShader = PS_StoreColorMask;
         RenderTarget = ColorMaskTex;
     }
 
-    pass RedEnhancement  // Apply hue shift
+    pass RedEnhancement
     {
         VertexShader = PostProcessVS;
         PixelShader = PS_RedEnhance;
     }
     
-    pass StoreEnhancedColors  // Now uses pre-stored mask on shifted colors
+    pass StoreEnhancedColors
     {
         VertexShader = PostProcessVS;
         PixelShader = PS_StoreEnhancedColors;
