@@ -118,8 +118,8 @@ static const float SHARPNESS_CLAMP = 0.3;
 static const float CrosshairThickness = 1.0;
 static const float CrosshairSize = 5.0;
 static const float HuntressCrosshairVerticalOffset = 0.527;
-static const float BLOOM_INTENSITY = 4.0;
-static const float BLOOM_RADIUS = 2.5;
+static const float BLOOM_INTENSITY = 3;
+static const float BLOOM_RADIUS = 1;
 
 
 texture BloomMaskTex { Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = R8; };
@@ -311,7 +311,7 @@ float4 PS_BloomHorizontal(float4 pos : SV_Position, float2 texcoord : TEXCOORD) 
     
     static const int sampleCount = 13;
     static const float offsets[13] = { -6.0, -5.0, -4.0, -3.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 };
-    static const float weights[13] = { 0.020, 0.035, 0.055, 0.070, 0.085, 0.095, 0.100, 0.095, 0.085, 0.070, 0.055, 0.035, 0.020 };
+    static const float weights[13] = { 0.008, 0.018, 0.038, 0.062, 0.082, 0.094, 0.100, 0.094, 0.082, 0.062, 0.038, 0.018, 0.008 };
     
     [unroll]
     for (int i = 0; i < sampleCount; i++)
@@ -343,7 +343,7 @@ float3 PS_BloomVertical(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : 
     
     static const int sampleCount = 13;
     static const float offsets[13] = { -5.7, -4.7, -3.7, -2.7, -1.7, -0.7, 0.3, 1.3, 2.3, 3.3, 4.3, 5.3, 6.3 };
-    static const float weights[13] = { 0.020, 0.035, 0.055, 0.070, 0.085, 0.095, 0.100, 0.095, 0.085, 0.070, 0.055, 0.035, 0.020 };
+    static const float weights[13] = { 0.008, 0.018, 0.038, 0.062, 0.082, 0.094, 0.100, 0.094, 0.082, 0.062, 0.038, 0.018, 0.008 };
     
     [unroll]
     for (int i = 0; i < sampleCount; i++)
@@ -388,36 +388,6 @@ float3 PS_BloomVertical(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : 
     return color;
 }
 
-float3 PS_AntiGreen(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
-{
-    float3 color = tex2D(ReShade::BackBuffer, texcoord).rgb;
-    
-    if (!AntiGreen)
-        return color;
-    
-    float3 hsv = RGB2HSV(color);
-    
-    float greenHueCenter = 0.3;
-    float greenHueRange = 0.15;
-    float orangeTintAmount = 0.1;
-    float brightnessDarken = 0.80;
-    
-    float hueDist = abs(hsv.x - greenHueCenter);
-    
-    float greenMask = 1.0 - saturate(hueDist / greenHueRange);
-    
-    hsv.z = lerp(hsv.z, hsv.z * brightnessDarken, greenMask);
-    
-    hsv.y = lerp(hsv.y, 0.0, greenMask);
-    
-    color = HSV2RGB(hsv);
-    
-    float3 orangeTint = float3(orangeTintAmount, orangeTintAmount * 0.5, 0.0);
-    color += orangeTint * greenMask;
-    
-    return saturate(color);
-}
-
 float3 PS_AntiYellow(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
 {
     float3 color = tex2D(ReShade::BackBuffer, texcoord).rgb;
@@ -444,6 +414,36 @@ float3 PS_AntiYellow(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_
     
     float3 blueTint = float3(0.0, 0.0, blueTintAmount);
     color += blueTint * yellowMask;
+    
+    return saturate(color);
+}
+
+float3 PS_AntiGreen(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
+{
+    float3 color = tex2D(ReShade::BackBuffer, texcoord).rgb;
+    
+    if (!AntiGreen)
+        return color;
+    
+    float3 hsv = RGB2HSV(color);
+    
+    float greenHueCenter = 0.3;
+    float greenHueRange = 0.15;
+    float orangeTintAmount = 0.1;
+    float brightnessDarken = 0.80;
+    
+    float hueDist = abs(hsv.x - greenHueCenter);
+    
+    float greenMask = 1.0 - saturate(hueDist / greenHueRange);
+    
+    hsv.z = lerp(hsv.z, hsv.z * brightnessDarken, greenMask);
+    
+    hsv.y = lerp(hsv.y, 0.0, greenMask);
+    
+    color = HSV2RGB(hsv);
+    
+    float3 orangeTint = float3(orangeTintAmount, orangeTintAmount * 0.5, 0.0);
+    color += orangeTint * greenMask;
     
     return saturate(color);
 }
@@ -586,13 +586,13 @@ technique all_u_need_4_dbd_by_misha<
     pass AntiYellowFilter
     {
         VertexShader = PostProcessVS;
-        PixelShader = PS_AntiGreen;
+        PixelShader = PS_AntiYellow;
     }
 
     pass AntiGreenFilter
     {
         VertexShader = PostProcessVS;
-        PixelShader = PS_AntiYellow;
+        PixelShader = PS_AntiGreen;
     }
     
     pass StoreColorMask
