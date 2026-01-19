@@ -28,8 +28,8 @@ uniform bool AntiGreen <
 > = false;
 
 uniform bool VibrantMode <
-    ui_label = "Enable Vivid";
-    ui_tooltip = "Makes colors more saturated, duh";
+    ui_label = "Comp shaders";
+    ui_tooltip = "Makes colors (awfully) more saturated, duh";
     ui_category = "Overall";
 > = false;
 
