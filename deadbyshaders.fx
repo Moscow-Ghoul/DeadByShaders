@@ -174,28 +174,53 @@ float GetColorMask(float3 color, float3 target, float likeness)
     
     // Soft hue gate: 0.075 = full pass, 0.075-0.085 = smooth falloff, >0.085 = zero
     float hueRangeCore = 0.075;
-    float hueRangeEdge = 0.085;
+    float hueRangeEdge = 0.09;
     float hueMask = 1.0 - smoothstep(hueRangeCore, hueRangeEdge, hueDist);
     if (hueMask <= 0.0)
         return 0.0;
     
-    // Soft saturation gate: similar approach
-    float minSatCore = 0.00;
-    float minSatEdge = 0.05;
-    float satMask = smoothstep(minSatCore, minSatEdge, colorHSV.y);
+    // Target-relative saturation gate
+    // Accept colors within a range around the target's saturation
+    float satRange = 0.90; // how far from target saturation to accept (widened)
+    float minSatCore = max(0.0, targetHSV.y - satRange);
+    float minSatEdge = max(0.0, targetHSV.y - satRange - 0.15);
+    float maxSatCore = min(1.0, targetHSV.y + satRange);
+    float maxSatEdge = min(1.0, targetHSV.y + satRange + 0.15);
+    
+    // Saturation mask: 1.0 if within core range, smooth falloff at edges
+    float satMask = 1.0;
+    if (colorHSV.y < minSatCore)
+        satMask = smoothstep(minSatEdge, minSatCore, colorHSV.y);
+    else if (colorHSV.y > maxSatCore)
+        satMask = 1.0 - smoothstep(maxSatCore, maxSatEdge, colorHSV.y);
+    
     if (satMask <= 0.0)
+        return 0.0;
+    
+    // Target-relative value gate
+    // Accept colors within a range around the target's value/brightness
+    float valRange = 0.80; // how far from target value to accept (widened)
+    float minValCore = max(0.0, targetHSV.z - valRange);
+    float minValEdge = max(0.0, targetHSV.z - valRange - 0.20);
+    float maxValCore = min(1.0, targetHSV.z + valRange);
+    float maxValEdge = min(1.0, targetHSV.z + valRange + 0.20);
+    
+    // Value mask: 1.0 if within core range, smooth falloff at edges
+    float valMask = 1.0;
+    if (colorHSV.z < minValCore)
+        valMask = smoothstep(minValEdge, minValCore, colorHSV.z);
+    else if (colorHSV.z > maxValCore)
+        valMask = 1.0 - smoothstep(maxValCore, maxValEdge, colorHSV.z);
+    
+    if (valMask <= 0.0)
         return 0.0;
     
     // Calculate weighted distance in HSV space
     float satDist = abs(colorHSV.y - targetHSV.y) * 0.5;
     float valDist = abs(colorHSV.z - targetHSV.z) * 0.15;
-    float totalDist = 2.0 * hueDist + 0.6 * satDist + 0.6 * valDist;
+    float totalDist = 2.0 * hueDist + 0.3 * satDist + 0.3 * valDist;
     
-    // Normalization: calculate what the minimum possible distance would be
-    // (a perfect match at the target color itself)
-    float minPossibleDist = 0.0;
-    
-    // Calculate maximum expected distance for normalization
+    // Normalization: calculate maximum expected distance for normalization
     // This represents the furthest color that should still get some mask value
     float maxExpectedDist = likeness * 0.5;
     
@@ -206,10 +231,10 @@ float GetColorMask(float3 color, float3 target, float likeness)
     float distanceMask = 1.0 - normalizedDist;
     
     // Combine all masks
-    float finalMask = hueMask * satMask * distanceMask;
+    float finalMask = hueMask * satMask * valMask * distanceMask;
     
     // Apply subtle curve for smoother tonal distribution
-    return pow(finalMask, 0.85);
+    return pow(finalMask, 0.9);
 }
 
 float3 PS_BrightnessEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
@@ -425,7 +450,7 @@ float3 PS_AntiYellow(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_
     float yellowMask = 1.0 - saturate(hueDist / yellowHueRange);
     
     hsv.z = lerp(hsv.z, hsv.z * brightnessDarken, yellowMask);
-    hsv.y = lerp(hsv.y, 0.0, yellowMask);
+    hsv.y = lerp(hsv.y, 0.0, yellowMask * 1.5);
     
     color = HSV2RGB(hsv);
     
@@ -454,7 +479,7 @@ float3 PS_AntiGreen(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_T
     float greenMask = 1.0 - saturate(hueDist / greenHueRange);
     
     hsv.z = lerp(hsv.z, hsv.z * brightnessDarken, greenMask);
-    hsv.y = lerp(hsv.y, 0.1, greenMask);
+    hsv.y = lerp(hsv.y, 0.1, greenMask * 1.5);
     
     color = HSV2RGB(hsv);
     
