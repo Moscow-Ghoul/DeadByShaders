@@ -109,7 +109,7 @@ uniform float DashLineOpacity <
     ui_type = "slider";
     ui_label = "Crosshair Opacity";
     ui_category = "Crosshairs";
-    ui_min = 0.1; ui_max = 1.0;
+    ui_min = 0.0; ui_max = 1.0;
     ui_step = 0.05;
 > = 0.5;
 
@@ -615,6 +615,135 @@ float3 PS_DashLine(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Ta
     return color;
 }
 
+float DrawText(float2 pixelPos, float2 startPos)
+{
+    float2 charPos = pixelPos - startPos;
+    int charIndex = int(charPos.x / 6.0); // 5 pixels wide + 1 pixel spacing
+    float2 localPos = float2(charPos.x % 6.0, charPos.y);
+    
+    if (localPos.x >= 5.0 || localPos.y >= 7.0 || localPos.y < 0) return 0.0;
+    
+    int col = int(localPos.x);
+    int row = int(localPos.y);
+    
+    if (charIndex == 0) {
+        int pattern[7] = {0x11, 0x1B, 0x15, 0x15, 0x11, 0x11, 0x11};
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    // O
+    else if (charIndex == 1) {
+        int pattern[7] = {0x0E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E};
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    // S
+    else if (charIndex == 2) {
+        int pattern[7] = {0x0E, 0x11, 0x10, 0x0E, 0x01, 0x11, 0x0E};
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    // C
+    else if (charIndex == 3) {
+        int pattern[7] = {0x0E, 0x11, 0x10, 0x10, 0x10, 0x11, 0x0E};
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    // O
+    else if (charIndex == 4) {
+        int pattern[7] = {0x0E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E};
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    // W
+    else if (charIndex == 5) {
+        int pattern[7] = {0x11, 0x11, 0x11, 0x15, 0x15, 0x1B, 0x11};
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    // (space)
+    else if (charIndex == 6) {
+        return 0.0;
+    }
+    // G
+    else if (charIndex == 7) {
+        int pattern[7] = {0x0E, 0x11, 0x10, 0x17, 0x11, 0x11, 0x0F};
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    // H
+    else if (charIndex == 8) {
+        int pattern[7] = {0x11, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11};
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    // O
+    else if (charIndex == 9) {
+        int pattern[7] = {0x0E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E};
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    // U
+    else if (charIndex == 10) {
+        int pattern[7] = {0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E};
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    // L
+    else if (charIndex == 11) {
+        int pattern[7] = {0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x1F};
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    // (space)
+    else if (charIndex == 12) {
+        return 0.0;
+    }
+    // S
+    else if (charIndex == 13) {
+        int pattern[7] = {0x0E, 0x11, 0x10, 0x0E, 0x01, 0x11, 0x0E};
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    // H
+    else if (charIndex == 14) {
+        int pattern[7] = {0x11, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11};
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    // A
+    else if (charIndex == 15) {
+        int pattern[7] = {0x0E, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11};
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    // D
+    else if (charIndex == 16) {
+        int pattern[7] = {0x1E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x1E};
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    // E
+    else if (charIndex == 17) {
+        int pattern[7] = {0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x1F};
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    // R
+    else if (charIndex == 18) {
+        int pattern[7] = {0x1E, 0x11, 0x11, 0x1E, 0x14, 0x12, 0x11};
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    // S
+    else if (charIndex == 19) {
+        int pattern[7] = {0x0E, 0x11, 0x10, 0x0E, 0x01, 0x11, 0x0E};
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    
+    return 0.0;
+}
+
+float4 PS_Watermark(float4 vpos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
+{
+    float4 color = tex2D(ReShade::BackBuffer, texcoord);
+    
+    float2 watermarkPos = float2(10, BUFFER_HEIGHT - 17); // 10px from left, 17px from bottom
+    float3 watermarkColor = float3(1.0, 1.0, 1.0); // White
+    float watermarkOpacity = 0.6; // 60% opacity
+    
+    float watermarkMask = DrawText(vpos.xy, watermarkPos);
+    
+    if (watermarkMask > 0.5) {
+        color.rgb = lerp(color.rgb, watermarkColor, watermarkOpacity);
+    }
+    
+    return color;
+}
+
 technique all_u_need_4_dbd_by_misha<
     ui_label = "All you need for DBD";
     ui_tooltip = "Comprehensive shader for Dead by Daylight by Misha \"Moscow Ghoul\""; 
@@ -680,7 +809,6 @@ technique all_u_need_4_dbd_by_misha<
         RenderTarget = BloomDown3Tex;
     }
     
-    // Kawase upsample chain
     pass BloomUp1
     {
         VertexShader = PostProcessVS;
@@ -695,7 +823,6 @@ technique all_u_need_4_dbd_by_misha<
         RenderTarget = BloomUp2Tex;
     }
     
-    // Final bloom composite with soft screen blend
     pass BloomComposite
     {
         VertexShader = PostProcessVS;
@@ -724,5 +851,11 @@ technique all_u_need_4_dbd_by_misha<
     {
         VertexShader = PostProcessVS;
         PixelShader = PS_DashLine;
+    }
+
+    pass Watermark
+    {
+        VertexShader = PostProcessVS;
+        PixelShader = PS_Watermark;
     }
 }
