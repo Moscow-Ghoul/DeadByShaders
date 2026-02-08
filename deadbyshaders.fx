@@ -617,171 +617,156 @@ float3 PS_DashLine(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Ta
 
 float DrawText(float2 pixelPos, float2 startPos)
 {
-    float2 charPos = pixelPos - startPos;
+    const int charSpacing = 6;
+    const int charHeight = 8;
+    const int charWidth = 5;
     
-    // Calculate slant offset: 7 pixels at top (row 0), decrease by 1 every 2 rows
-    int row = int(charPos.y);
-    int slantOffset = max(0, 7 - (row / 2));
+    // Map characters: M O S C O W   G H O U L   S H A D E R S
+    const int numChars = 20;
     
-    // Apply slant offset to horizontal position
-    float slantedX = charPos.x - slantOffset;
+    float2 relPos = pixelPos - startPos;
+    if (relPos.y < 0 || relPos.y >= charHeight) return 0.0;
     
-    int charIndex = int(slantedX / 6.0); // 5 pixels wide + 1 pixel spacing
-    float2 localPos = float2(slantedX - charIndex * 6.0, charPos.y);
+    int col = int(relPos.x);
+    int row = int(relPos.y);
     
-    if (localPos.x >= 5.0 || localPos.y >= 14.0 || localPos.y < 0 || localPos.x < 0) return 0.0;
+    int charIndex = col / charSpacing;
+    if (charIndex >= numChars) return 0.0;
     
-    int col = int(localPos.x);
+    col = col % charSpacing;
+    if (col >= charWidth) return 0.0;
     
-    // M (modern calligraphy - part 1)
+    // M (block style)
     if (charIndex == 0) {
-        int pattern[14] = {
-            0x01, 0x03, 0x07, 0x0F, 0x1D, 0x19, 0x19,
-            0x19, 0x19, 0x19, 0x19, 0x19, 0x19, 0x08
+        int pattern[8] = {
+            0x11, 0x1B, 0x15, 0x11, 0x11, 0x11, 0x11, 0x11
         };
         return ((pattern[row] >> (4 - col)) & 1);
     }
-    // M (modern calligraphy - part 2)
+    // O (block style)
     else if (charIndex == 1) {
-        int pattern[14] = {
-            0x10, 0x18, 0x1C, 0x0E, 0x07, 0x03, 0x03,
-            0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x01
+        int pattern[8] = {
+            0x0E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E
         };
         return ((pattern[row] >> (4 - col)) & 1);
     }
-    // O (modern calligraphy)
+    // S (block style)
     else if (charIndex == 2) {
-        int pattern[14] = {
-            0x00, 0x00, 0x0E, 0x1F, 0x11, 0x11, 0x11,
-            0x11, 0x11, 0x11, 0x1F, 0x0E, 0x04, 0x02
+        int pattern[8] = {
+            0x0E, 0x11, 0x10, 0x0E, 0x01, 0x01, 0x11, 0x0E
         };
         return ((pattern[row] >> (4 - col)) & 1);
     }
-    // S (modern calligraphy)
+    // C (block style)
     else if (charIndex == 3) {
-        int pattern[14] = {
-            0x02, 0x07, 0x0F, 0x18, 0x10, 0x1C, 0x0E,
-            0x07, 0x03, 0x01, 0x19, 0x1E, 0x0C, 0x08
+        int pattern[8] = {
+            0x0E, 0x11, 0x10, 0x10, 0x10, 0x10, 0x11, 0x0E
         };
         return ((pattern[row] >> (4 - col)) & 1);
     }
-    // C (modern calligraphy)
+    // O (block style)
     else if (charIndex == 4) {
-        int pattern[14] = {
-            0x00, 0x00, 0x0F, 0x1F, 0x18, 0x10, 0x10,
-            0x10, 0x10, 0x18, 0x1F, 0x0F, 0x06, 0x02
+        int pattern[8] = {
+            0x0E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E
         };
         return ((pattern[row] >> (4 - col)) & 1);
     }
-    // O (modern calligraphy)
+    // W (block style)
     else if (charIndex == 5) {
-        int pattern[14] = {
-            0x00, 0x00, 0x0E, 0x1F, 0x11, 0x11, 0x11,
-            0x11, 0x11, 0x11, 0x1F, 0x0E, 0x04, 0x02
+        int pattern[8] = {
+            0x11, 0x11, 0x11, 0x11, 0x15, 0x15, 0x1F, 0x0A
         };
         return ((pattern[row] >> (4 - col)) & 1);
     }
-    // W (modern calligraphy)
+    // Space
     else if (charIndex == 6) {
-        int pattern[14] = {
-            0x00, 0x00, 0x11, 0x11, 0x11, 0x11, 0x15,
-            0x15, 0x15, 0x1F, 0x0A, 0x0A, 0x0A, 0x04
-        };
-        return ((pattern[row] >> (4 - col)) & 1);
+        return 0.0;
     }
-    // G (modern calligraphy)
+    // G (block style)
     else if (charIndex == 7) {
-        int pattern[14] = {
-            0x00, 0x00, 0x0F, 0x1F, 0x18, 0x10, 0x17,
-            0x17, 0x11, 0x19, 0x1F, 0x0F, 0x03, 0x01
+        int pattern[8] = {
+            0x0E, 0x11, 0x10, 0x10, 0x17, 0x11, 0x11, 0x0F
         };
         return ((pattern[row] >> (4 - col)) & 1);
     }
-    // H (modern calligraphy)
+    // H (block style)
     else if (charIndex == 8) {
-        int pattern[14] = {
-            0x10, 0x10, 0x10, 0x10, 0x10, 0x1F, 0x1F,
-            0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x01
+        int pattern[8] = {
+            0x11, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11, 0x11
         };
         return ((pattern[row] >> (4 - col)) & 1);
     }
-    // O (modern calligraphy)
+    // O (block style)
     else if (charIndex == 9) {
-        int pattern[14] = {
-            0x00, 0x00, 0x0E, 0x1F, 0x11, 0x11, 0x11,
-            0x11, 0x11, 0x11, 0x1F, 0x0E, 0x04, 0x02
+        int pattern[8] = {
+            0x0E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E
         };
         return ((pattern[row] >> (4 - col)) & 1);
     }
-    // U (modern calligraphy)
+    // U (block style)
     else if (charIndex == 10) {
-        int pattern[14] = {
-            0x00, 0x00, 0x11, 0x11, 0x11, 0x11, 0x11,
-            0x11, 0x11, 0x11, 0x1F, 0x0F, 0x03, 0x01
+        int pattern[8] = {
+            0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E
         };
         return ((pattern[row] >> (4 - col)) & 1);
     }
-    // L (modern calligraphy)
+    // L (block style)
     else if (charIndex == 11) {
-        int pattern[14] = {
-            0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10,
-            0x10, 0x10, 0x10, 0x1F, 0x1F, 0x07, 0x01
+        int pattern[8] = {
+            0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x1F
         };
         return ((pattern[row] >> (4 - col)) & 1);
     }
-    // S (modern calligraphy)
+    // Space
     else if (charIndex == 12) {
-        int pattern[14] = {
-            0x02, 0x07, 0x0F, 0x18, 0x10, 0x1C, 0x0E,
-            0x07, 0x03, 0x01, 0x19, 0x1E, 0x0C, 0x08
-        };
-        return ((pattern[row] >> (4 - col)) & 1);
+        return 0.0;
     }
-    // H (modern calligraphy)
+    // S (block style)
     else if (charIndex == 13) {
-        int pattern[14] = {
-            0x10, 0x10, 0x10, 0x10, 0x10, 0x1F, 0x1F,
-            0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x01
+        int pattern[8] = {
+            0x0E, 0x11, 0x10, 0x0E, 0x01, 0x01, 0x11, 0x0E
         };
         return ((pattern[row] >> (4 - col)) & 1);
     }
-    // A (modern calligraphy)
+    // H (block style)
     else if (charIndex == 14) {
-        int pattern[14] = {
-            0x00, 0x04, 0x0E, 0x0E, 0x0A, 0x0A, 0x11,
-            0x1F, 0x1F, 0x11, 0x11, 0x11, 0x11, 0x01
+        int pattern[8] = {
+            0x11, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11, 0x11
         };
         return ((pattern[row] >> (4 - col)) & 1);
     }
-    // D (modern calligraphy)
+    // A (block style)
     else if (charIndex == 15) {
-        int pattern[14] = {
-            0x10, 0x10, 0x1E, 0x1F, 0x13, 0x11, 0x11,
-            0x11, 0x11, 0x13, 0x1F, 0x1E, 0x18, 0x00
+        int pattern[8] = {
+            0x0E, 0x11, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11
         };
         return ((pattern[row] >> (4 - col)) & 1);
     }
-    // E (modern calligraphy)
+    // D (block style)
     else if (charIndex == 16) {
-        int pattern[14] = {
-            0x00, 0x00, 0x1F, 0x1F, 0x10, 0x10, 0x1E,
-            0x1E, 0x10, 0x10, 0x1F, 0x1F, 0x0E, 0x04
+        int pattern[8] = {
+            0x1E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x1E
         };
         return ((pattern[row] >> (4 - col)) & 1);
     }
-    // R (modern calligraphy)
+    // E (block style)
     else if (charIndex == 17) {
-        int pattern[14] = {
-            0x00, 0x00, 0x1E, 0x1F, 0x13, 0x13, 0x1F,
-            0x1E, 0x16, 0x13, 0x13, 0x11, 0x11, 0x01
+        int pattern[8] = {
+            0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x10, 0x1F
         };
         return ((pattern[row] >> (4 - col)) & 1);
     }
-    // S (modern calligraphy)
+    // R (block style)
     else if (charIndex == 18) {
-        int pattern[14] = {
-            0x02, 0x07, 0x0F, 0x18, 0x10, 0x1C, 0x0E,
-            0x07, 0x03, 0x01, 0x19, 0x1E, 0x0C, 0x08
+        int pattern[8] = {
+            0x1E, 0x11, 0x11, 0x1E, 0x14, 0x12, 0x11, 0x11
+        };
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    // S (block style - last character, completing "SHADERS")
+    else if (charIndex == 19) {
+        int pattern[8] = {
+            0x0E, 0x11, 0x10, 0x0E, 0x01, 0x01, 0x11, 0x0E
         };
         return ((pattern[row] >> (4 - col)) & 1);
     }
@@ -793,7 +778,7 @@ float4 PS_Watermark(float4 vpos : SV_Position, float2 texcoord : TEXCOORD) : SV_
 {
     float4 color = tex2D(ReShade::BackBuffer, texcoord);
     
-    float2 watermarkPos = float2(10, BUFFER_HEIGHT - 17); // 10px from left, 17px from bottom
+    float2 watermarkPos = float2(10, BUFFER_HEIGHT - 11); // 10px from left, 11px from bottom (8px font + 3px margin)
     float3 watermarkColor = float3(1.0, 1.0, 1.0); // White
     float watermarkOpacity = 0.6; // 60% opacity
     
