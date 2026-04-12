@@ -443,19 +443,19 @@ float3 PS_AntiYellow(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_
     
     float yellowHueCenter = 0.125;
     float yellowHueRange = 0.1;
-    float blueTintAmount = 0.1;
+    float3 blueTint = float3(0.0, 0.0, 1.0);
+    float tintStrength = 0.1;
     float brightnessDarken = 0.85;
     
     float hueDist = abs(hsv.x - yellowHueCenter);
     float yellowMask = 1.0 - saturate(hueDist / yellowHueRange);
     
     hsv.z = lerp(hsv.z, hsv.z * brightnessDarken, yellowMask);
-    hsv.y = lerp(hsv.y, 0.0, yellowMask * 1.5);
+    hsv.y = lerp(hsv.y, 0.1, yellowMask * 1.5);
     
     color = HSV2RGB(hsv);
     
-    float3 blueTint = float3(0.0, 0.0, blueTintAmount);
-    color += blueTint * yellowMask;
+    color += blueTint * tintStrength * yellowMask;
     
     return saturate(color);
 }
@@ -471,15 +471,15 @@ float3 PS_AntiGreen(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_T
     
     float greenHueCenter = 0.35;
     float greenHueRange = 0.2;
-    float3 blueTint = float3(0.0, 0.411765, 1.0);
-    float tintStrength = 0.1;
+    float3 blueTint = float3(0.4, 0.2, 0.7);
+    float tintStrength = 0.09;
     float brightnessDarken = 1.0;
     
     float hueDist = abs(hsv.x - greenHueCenter);
     float greenMask = 1.0 - saturate(hueDist / greenHueRange);
     
     hsv.z = lerp(hsv.z, hsv.z * brightnessDarken, greenMask);
-    hsv.y = lerp(hsv.y, 0.1, greenMask * 1.5);
+    hsv.y = lerp(hsv.y, 0.2, greenMask * 1.0);
     
     color = HSV2RGB(hsv);
     
@@ -622,7 +622,7 @@ float DrawText(float2 pixelPos, float2 startPos)
     const int charWidth = 5;
     
     // Map characters: M O S C O W   G H O U L   S H A D E R S
-    const int numChars = 20;
+    const int numChars = 21;
     
     float2 relPos = pixelPos - startPos;
     if (relPos.y < 0 || relPos.y >= charHeight) return 0.0;
@@ -635,136 +635,140 @@ float DrawText(float2 pixelPos, float2 startPos)
     
     col = col % charSpacing;
     if (col >= charWidth) return 0.0;
-    
-    // M (block style)
+   
+    // Skip index 0
     if (charIndex == 0) {
+        return 0.0;
+    } 
+    // M (italic curvy style)
+    if (charIndex == 1) {
         int pattern[8] = {
-            0x11, 0x1B, 0x15, 0x11, 0x11, 0x11, 0x11, 0x11
+            0x0A, 0x15, 0x15, 0x11, 0x11, 0x11, 0x11, 0x11
         };
         return ((pattern[row] >> (4 - col)) & 1);
     }
     // O (block style)
-    else if (charIndex == 1) {
+    else if (charIndex == 2) {
         int pattern[8] = {
             0x0E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E
         };
         return ((pattern[row] >> (4 - col)) & 1);
     }
     // S (block style)
-    else if (charIndex == 2) {
+    else if (charIndex == 3) {
         int pattern[8] = {
             0x0E, 0x11, 0x10, 0x0E, 0x01, 0x01, 0x11, 0x0E
         };
         return ((pattern[row] >> (4 - col)) & 1);
     }
     // C (block style)
-    else if (charIndex == 3) {
+    else if (charIndex == 4) {
         int pattern[8] = {
             0x0E, 0x11, 0x10, 0x10, 0x10, 0x10, 0x11, 0x0E
         };
         return ((pattern[row] >> (4 - col)) & 1);
     }
     // O (block style)
-    else if (charIndex == 4) {
+    else if (charIndex == 5) {
         int pattern[8] = {
             0x0E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E
         };
         return ((pattern[row] >> (4 - col)) & 1);
     }
     // W (block style)
-    else if (charIndex == 5) {
+    else if (charIndex == 6) {
         int pattern[8] = {
             0x11, 0x11, 0x11, 0x11, 0x15, 0x15, 0x1F, 0x0A
         };
         return ((pattern[row] >> (4 - col)) & 1);
     }
     // Space
-    else if (charIndex == 6) {
+    else if (charIndex == 7) {
         return 0.0;
     }
     // G (block style)
-    else if (charIndex == 7) {
+    else if (charIndex == 8) {
         int pattern[8] = {
             0x0E, 0x11, 0x10, 0x10, 0x17, 0x11, 0x11, 0x0F
         };
         return ((pattern[row] >> (4 - col)) & 1);
     }
     // H (block style)
-    else if (charIndex == 8) {
+    else if (charIndex == 9) {
         int pattern[8] = {
             0x11, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11, 0x11
         };
         return ((pattern[row] >> (4 - col)) & 1);
     }
     // O (block style)
-    else if (charIndex == 9) {
+    else if (charIndex == 10) {
         int pattern[8] = {
             0x0E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E
         };
         return ((pattern[row] >> (4 - col)) & 1);
     }
     // U (block style)
-    else if (charIndex == 10) {
+    else if (charIndex == 11) {
         int pattern[8] = {
             0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E
         };
         return ((pattern[row] >> (4 - col)) & 1);
     }
     // L (block style)
-    else if (charIndex == 11) {
+    else if (charIndex == 12) {
         int pattern[8] = {
             0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x1F
         };
         return ((pattern[row] >> (4 - col)) & 1);
     }
     // Space
-    else if (charIndex == 12) {
+    else if (charIndex == 13) {
         return 0.0;
     }
     // S (block style)
-    else if (charIndex == 13) {
+    else if (charIndex == 14) {
         int pattern[8] = {
             0x0E, 0x11, 0x10, 0x0E, 0x01, 0x01, 0x11, 0x0E
         };
         return ((pattern[row] >> (4 - col)) & 1);
     }
     // H (block style)
-    else if (charIndex == 14) {
+    else if (charIndex == 15) {
         int pattern[8] = {
             0x11, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11, 0x11
         };
         return ((pattern[row] >> (4 - col)) & 1);
     }
     // A (block style)
-    else if (charIndex == 15) {
+    else if (charIndex == 16) {
         int pattern[8] = {
             0x0E, 0x11, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11
         };
         return ((pattern[row] >> (4 - col)) & 1);
     }
     // D (block style)
-    else if (charIndex == 16) {
+    else if (charIndex == 17) {
         int pattern[8] = {
             0x1E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x1E
         };
         return ((pattern[row] >> (4 - col)) & 1);
     }
     // E (block style)
-    else if (charIndex == 17) {
+    else if (charIndex == 18) {
         int pattern[8] = {
             0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x10, 0x1F
         };
         return ((pattern[row] >> (4 - col)) & 1);
     }
     // R (block style)
-    else if (charIndex == 18) {
+    else if (charIndex == 19) {
         int pattern[8] = {
             0x1E, 0x11, 0x11, 0x1E, 0x14, 0x12, 0x11, 0x11
         };
         return ((pattern[row] >> (4 - col)) & 1);
     }
     // S (block style - last character, completing "SHADERS")
-    else if (charIndex == 19) {
+    else if (charIndex == 20) {
         int pattern[8] = {
             0x0E, 0x11, 0x10, 0x0E, 0x01, 0x01, 0x11, 0x0E
         };
