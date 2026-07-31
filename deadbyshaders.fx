@@ -7,7 +7,7 @@ uniform float Brightness <
     ui_category = "Overall";
     ui_min = 0.8; ui_max = 1.5;
     ui_step = 0.01;
-> = 1.25;
+> = 1.15;
 
 uniform bool sharpyn <
     ui_label = "Enable sharpening";
@@ -23,13 +23,13 @@ uniform bool AntiYellow <
 
 uniform bool AntiGreen <
     ui_label = "Enable Anti-Green Filter";
-    ui_tooltip = "Makes Autoheaven less sickly-looking (why do i even have to do this, bhvr, it was fine before)";
+    ui_tooltip = "Makes Autoheaven less sickly-looking (why do i even  have to do this, bhvr, it was fine before)";
     ui_category = "Overall";
 > = false;
 
 uniform bool VibrantMode <
-    ui_label = "Enable Vivid";
-    ui_tooltip = "Makes colors more saturated, duh";
+    ui_label = "Comp shaders";
+    ui_tooltip = "Makes colors (awfully) more saturated, duh";
     ui_category = "Overall";
 > = false;
 
@@ -39,41 +39,35 @@ uniform bool EnableBloom <
     ui_category = "Overall";
 > = true;
 
+static const float BLOOM_THICKNESS = 1;
+static const float BLOOM_INTENSITY = 1.5;
+
 uniform float3 TargetColor <
     ui_type = "color";
     ui_label = "Target Color";
     ui_tooltip = "Pick the exact color you want to replace (e.g., scratch marks, blood)";
     ui_category = "Color Replacement";
-> = float3(1.0, 0.392157, 0.392157);
+> = float3(1.0, 0.5, 0.5);
 
 uniform float3 DesiredColor <
     ui_type = "color";
     ui_label = "Desired Color";
     ui_tooltip = "Pick the color you want target colors to become";
     ui_category = "Color Replacement";
-> = float3(1.0, 0.392157, 0.392157);
+> = float3(1.0, 0.5, 0.5);
 
 uniform float ColorLikeness <
     ui_type = "slider";
-    ui_label = "Color Similarity";
-    ui_tooltip = "How similar a color must be to the target to be replaced (lower = more strict)";
+    ui_label = "Color Likeness";
+    ui_tooltip = "Determines how similar a color can be to the target color in order to be replaced, lesser values are more strict and greater values are more inclusive";
     ui_category = "Color Replacement";
-    ui_min = 0.05; ui_max = 0.5;
+    ui_min = 0.00; ui_max = 2;
     ui_step = 0.01;
-> = 0.4;
-
-uniform float BlendStrength <
-    ui_type = "slider";
-    ui_label = "Blend Strength";
-    ui_tooltip = "How strongly to apply the color replacement";
-    ui_category = "Color Replacement";
-    ui_min = 0.5; ui_max = 3.0;
-    ui_step = 0.1;
-> = 1.5;
+> = 1;
 
 uniform bool ChromaMode <
     ui_label = "Enable Chroma Mode";
-    ui_tooltip = "Automatically cycle through hue shifts (rainbow effect)";
+    ui_tooltip = "Automatically cycle the replacement color through the rainbow";
     ui_category = "Color Replacement";
 > = false;
 
@@ -111,9 +105,9 @@ uniform float3 CrosshairColor <
 
 uniform float DashLineOpacity <
     ui_type = "slider";
-    ui_label = "Wesker Crosshair Opacity";
+    ui_label = "Crosshair Opacity";
     ui_category = "Crosshairs";
-    ui_min = 0.1; ui_max = 1.0;
+    ui_min = 0.0; ui_max = 1.0;
     ui_step = 0.05;
 > = 0.5;
 
@@ -123,37 +117,30 @@ static const float SHARPNESS_CLAMP = 0.3;
 static const float CrosshairThickness = 1.0;
 static const float CrosshairSize = 5.0;
 static const float HuntressCrosshairVerticalOffset = 0.527;
-static const float BLOOM_INTENSITY = 4;
-static const float BLOOM_RADIUS = 1;
 
-texture BloomMaskTex { Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = R8; };
-sampler BloomMaskSampler { Texture = BloomMaskTex; };
+texture BloomExtractTex { Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = RGBA16F; };
+sampler BloomExtractSampler { Texture = BloomExtractTex; MinFilter = LINEAR; MagFilter = LINEAR; };
 
-texture EnhancedColorTex { Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = RGBA8; };
-sampler EnhancedColorSampler { 
-    Texture = EnhancedColorTex;
-    MinFilter = LINEAR;
-    MagFilter = LINEAR;
-};
+texture BloomDown1Tex { Width = BUFFER_WIDTH / 2; Height = BUFFER_HEIGHT / 2; Format = RGBA16F; };
+sampler BloomDown1Sampler { Texture = BloomDown1Tex; MinFilter = LINEAR; MagFilter = LINEAR; };
 
-texture BloomHorizontalTex { Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = RGBA8; };
-sampler BloomHorizontalSampler { 
-    Texture = BloomHorizontalTex;
-    MinFilter = LINEAR;
-    MagFilter = LINEAR;
-};
+texture BloomDown2Tex { Width = BUFFER_WIDTH / 4; Height = BUFFER_HEIGHT / 4; Format = RGBA16F; };
+sampler BloomDown2Sampler { Texture = BloomDown2Tex; MinFilter = LINEAR; MagFilter = LINEAR; };
+
+texture BloomDown3Tex { Width = BUFFER_WIDTH / 8; Height = BUFFER_HEIGHT / 8; Format = RGBA16F; };
+sampler BloomDown3Sampler { Texture = BloomDown3Tex; MinFilter = LINEAR; MagFilter = LINEAR; };
+
+texture BloomUp1Tex { Width = BUFFER_WIDTH / 4; Height = BUFFER_HEIGHT / 4; Format = RGBA16F; };
+sampler BloomUp1Sampler { Texture = BloomUp1Tex; MinFilter = LINEAR; MagFilter = LINEAR; };
+
+texture BloomUp2Tex { Width = BUFFER_WIDTH / 2; Height = BUFFER_HEIGHT / 2; Format = RGBA16F; };
+sampler BloomUp2Sampler { Texture = BloomUp2Tex; MinFilter = LINEAR; MagFilter = LINEAR; };
 
 texture ColorMaskTex { Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = R8; };
 sampler ColorMaskSampler { Texture = ColorMaskTex; };
 
 float cheapDither(float2 uv) {
     return frac(sin(dot(uv, float2(12.9898, 78.233))) * 43758.5453);
-}
-
-float2 cheapJitter(float2 uv, float seed) {
-    float random1 = frac(sin(dot(uv, float2(12.9898, 78.233 + seed))) * 43758.5453);
-    float random2 = frac(sin(dot(uv, float2(92.9898, 38.233 + seed))) * 65437.5453);
-    return float2(random1, random2) * 0.1 - 0.15;
 }
 
 float3 RGB2HSV(float3 rgb)
@@ -174,71 +161,78 @@ float3 HSV2RGB(float3 hsv)
     return hsv.z * lerp(K.xxx, saturate(p - K.xxx), hsv.y);
 }
 
-float CalculateColorMask(float3 color, float3 target, float likeness)
+float GetColorMask(float3 color, float3 target, float likeness)
 {
     float3 colorHSV = RGB2HSV(color);
     float3 targetHSV = RGB2HSV(target);
     
+    // Calculate hue distance (wrapping around color wheel)
     float hueDist = abs(colorHSV.x - targetHSV.x);
     if (hueDist > 0.5) hueDist = 1.0 - hueDist;
     
-    float hueRange = 0.075;
-    bool isMatchingHue = (hueDist < hueRange);
-    
-    if (!isMatchingHue)
+    // Soft hue gate: 0.075 = full pass, 0.075-0.085 = smooth falloff, >0.085 = zero
+    float hueRangeCore = 0.075;
+    float hueRangeEdge = 0.09;
+    float hueMask = 1.0 - smoothstep(hueRangeCore, hueRangeEdge, hueDist);
+    if (hueMask <= 0.0)
         return 0.0;
     
-    float minSaturation = 0.1;
-    if (colorHSV.y < minSaturation)
+    // Target-relative saturation gate
+    // Accept colors within a range around the target's saturation
+    float satRange = 0.90; // how far from target saturation to accept (widened)
+    float minSatCore = max(0.0, targetHSV.y - satRange);
+    float minSatEdge = max(0.0, targetHSV.y - satRange - 0.15);
+    float maxSatCore = min(1.0, targetHSV.y + satRange);
+    float maxSatEdge = min(1.0, targetHSV.y + satRange + 0.15);
+    
+    // Saturation mask: 1.0 if within core range, smooth falloff at edges
+    float satMask = 1.0;
+    if (colorHSV.y < minSatCore)
+        satMask = smoothstep(minSatEdge, minSatCore, colorHSV.y);
+    else if (colorHSV.y > maxSatCore)
+        satMask = 1.0 - smoothstep(maxSatCore, maxSatEdge, colorHSV.y);
+    
+    if (satMask <= 0.0)
         return 0.0;
     
-    float satDist = abs(colorHSV.y - targetHSV.y) * 0.7;
+    // Target-relative value gate
+    // Accept colors within a range around the target's value/brightness
+    float valRange = 0.80; // how far from target value to accept (widened)
+    float minValCore = max(0.0, targetHSV.z - valRange);
+    float minValEdge = max(0.0, targetHSV.z - valRange - 0.20);
+    float maxValCore = min(1.0, targetHSV.z + valRange);
+    float maxValEdge = min(1.0, targetHSV.z + valRange + 0.20);
+    
+    // Value mask: 1.0 if within core range, smooth falloff at edges
+    float valMask = 1.0;
+    if (colorHSV.z < minValCore)
+        valMask = smoothstep(minValEdge, minValCore, colorHSV.z);
+    else if (colorHSV.z > maxValCore)
+        valMask = 1.0 - smoothstep(maxValCore, maxValEdge, colorHSV.z);
+    
+    if (valMask <= 0.0)
+        return 0.0;
+    
+    // Calculate weighted distance in HSV space
+    float satDist = abs(colorHSV.y - targetHSV.y) * 0.5;
     float valDist = abs(colorHSV.z - targetHSV.z) * 0.15;
-    float totalDist = 2.0 * hueDist + satDist + valDist;
-    float threshold = likeness * 2.5;
-    float mask = saturate(1.0 - (totalDist / threshold));
+    float totalDist = 2.0 * hueDist + 0.3 * satDist + 0.3 * valDist;
     
-    return pow(mask, 1.2);
-}
-
-float GetColorMask(float3 color, float3 target, float likeness, float2 texcoord)
-{
-    float mask = CalculateColorMask(color, target, likeness);
+    // Normalization: calculate maximum expected distance for normalization
+    // This represents the furthest color that should still get some mask value
+    float maxExpectedDist = likeness * 0.5;
     
-    if (mask < 0.01)
-        return 0.0;
+    // Remap distance to 0-1 range, normalized by likeness
+    float normalizedDist = saturate(totalDist / maxExpectedDist);
     
-    float2 pixelSize = ReShade::PixelSize;
+    // Create gradient: 0 distance = 1.0 mask, max distance = 0.0 mask
+    float distanceMask = 1.0 - normalizedDist;
     
-    float3 left = tex2D(ReShade::BackBuffer, texcoord + float2(-pixelSize.x, 0)).rgb;
-    float3 right = tex2D(ReShade::BackBuffer, texcoord + float2(pixelSize.x, 0)).rgb;
-    float3 up = tex2D(ReShade::BackBuffer, texcoord + float2(0, -pixelSize.y)).rgb;
-    float3 down = tex2D(ReShade::BackBuffer, texcoord + float2(0, pixelSize.y)).rgb;
+    // Combine all masks
+    float finalMask = hueMask * satMask * valMask * distanceMask;
     
-    float leftMask = CalculateColorMask(left, target, likeness);
-    float rightMask = CalculateColorMask(right, target, likeness);
-    float upMask = CalculateColorMask(up, target, likeness);
-    float downMask = CalculateColorMask(down, target, likeness);
-    
-    float neighborMask = (leftMask + rightMask + upMask + downMask) / 4.0;
-    
-    float colorDiff = 0.0;
-    colorDiff += length(color - left);
-    colorDiff += length(color - right);
-    colorDiff += length(color - up);
-    colorDiff += length(color - down);
-    colorDiff /= 4.0;
-    
-    if (colorDiff > 0.15 && neighborMask < 0.3)
-    {
-        mask *= 0.2;
-    }
-    else if (neighborMask > 0.1)
-    {
-        mask = lerp(mask, 1.0, 0.1);
-    }
-    
-    return saturate(mask);
+    // Apply subtle curve for smoother tonal distribution
+    return pow(finalMask, 0.9);
 }
 
 float3 PS_BrightnessEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
@@ -246,13 +240,12 @@ float3 PS_BrightnessEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD
     float3 color = tex2D(ReShade::BackBuffer, texcoord).rgb;
     
     float luma = dot(color, float3(0.2126, 0.7152, 0.0722));
-    
     float shadowMask = luma * pow(1.0 - luma, 1.8);
     float shadowLift = (Brightness - 1.0) * 4.0;
     color += shadowLift * shadowMask;
     
     float midpoint = 0.5;
-    color = (color - midpoint) * 1.15 + midpoint;
+    color = (color - midpoint) * 1.1 + midpoint;
     
     return saturate(color);
 }
@@ -260,38 +253,7 @@ float3 PS_BrightnessEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD
 float PS_StoreColorMask(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
 {
     float3 color = tex2D(ReShade::BackBuffer, texcoord).rgb;
-    return CalculateColorMask(color, TargetColor, ColorLikeness);
-}
-
-float PS_GenerateBloomMask(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
-{
-    if (!EnableBloom)
-        return 0.0;
-        
-    float3 color = tex2D(ReShade::BackBuffer, texcoord).rgb;
-    float colorMask = CalculateColorMask(color, TargetColor, ColorLikeness);
-    
-    return colorMask;
-}
-
-float4 PS_StoreEnhancedColors(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
-{
-    if (!EnableBloom)
-        return float4(0.0, 0.0, 0.0, 0.0);
-        
-    float3 color = tex2D(ReShade::BackBuffer, texcoord).rgb;
-    float colorMask = tex2D(ColorMaskSampler, texcoord).r;
-    
-    float dither = cheapDither(texcoord);
-    float threshold = 0.15 + (dither - 0.5) * 0.09;
-    
-    if (colorMask > threshold)
-    {
-        float smoothMask = pow((colorMask - threshold) / (1.0 - threshold), 3.0);
-        return float4(color * smoothMask, smoothMask);
-    }
-    
-    return float4(0.0, 0.0, 0.0, 0.0);
+    return GetColorMask(color, TargetColor, ColorLikeness);
 }
 
 float3 PS_RedEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
@@ -299,14 +261,13 @@ float3 PS_RedEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_
     float3 color = tex2D(ReShade::BackBuffer, texcoord).rgb;
     float3 originalColor = color;
     
-    float colorMask = GetColorMask(color, TargetColor, ColorLikeness, texcoord);
+    float colorMask = tex2D(ColorMaskSampler, texcoord).r;
     
-    if (colorMask > 0.01)
+    float saturationBoost = VibrantMode ? 2.2 : 1.3;
+    float replaceFalloff = VibrantMode ? 2.3 : 1.8;
+    
+    if (colorMask > 0.00)
     {
-        float originalLuminance = dot(color, float3(0.2126, 0.7152, 0.0722));
-        float3 originalHSV = RGB2HSV(color);
-        
-        float desiredLuminance = dot(DesiredColor, float3(0.2126, 0.7152, 0.0722));
         float3 desiredHSV = RGB2HSV(DesiredColor);
         
         if (ChromaMode)
@@ -316,163 +277,149 @@ float3 PS_RedEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_
             desiredHSV.x = cycle;
         }
         
-        bool desiredIsGray = desiredHSV.y < 0.01;
+        desiredHSV.y = saturate(desiredHSV.y * saturationBoost);
+        desiredHSV.z = saturate(desiredHSV.z * 1.1);
         
-        if (desiredIsGray)
-        {
-            float luminanceFactor = originalLuminance / max(desiredLuminance, 0.001);
-            luminanceFactor = clamp(luminanceFactor, 0.5, 2.0);
-            
-            float3 result = DesiredColor * luminanceFactor;
-            color = lerp(color, result, colorMask * BlendStrength);
-        }
-        else
-        {
-            float3 result = DesiredColor;
-            
-            float saturationBoost = VibrantMode ? 2.7 : 1.0;
-            if (saturationBoost > 1.0)
-            {
-                desiredHSV.y = saturate(desiredHSV.y * saturationBoost);
-            }
-            
-            float brightnessPreservation = 0.4;
-            float targetBrightness = desiredHSV.z;
-            float blendedBrightness = lerp(originalHSV.z, targetBrightness, 1.0 - brightnessPreservation);
-            
-            float3 desiredHSVAdjusted = desiredHSV;
-            desiredHSVAdjusted.z = blendedBrightness;
-            result = HSV2RGB(desiredHSVAdjusted);
-            
-            if (originalLuminance > 0.5)
-            {
-                float3 screenBlend = 1.0 - (1.0 - result) * (1.0 - color);
-                result = lerp(result, screenBlend, 0.4);
-            }
-            else
-            {
-                float3 multiplyBlend = result * color * 1.5;
-                result = lerp(result, multiplyBlend, 0.4);
-            }
-            
-            float blendAmount = colorMask * BlendStrength;
-            float hueShiftFalloff = VibrantMode ? 2.7 : 1.0;
-            blendAmount *= hueShiftFalloff;
-            
-            color = lerp(originalColor, result, blendAmount);
-        }
+        float3 replacedColor = HSV2RGB(desiredHSV);
+        float mixAmount = saturate(colorMask * replaceFalloff);
+        color = lerp(originalColor, replacedColor, mixAmount);
     }
     
     return saturate(color);
 }
 
-float4 PS_BloomHorizontal(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
+float4 KawaseDown(sampler sourceSampler, float2 texcoord, float2 pixelSize, float offset)
 {
-    if (!EnableBloom)
-        return float4(0.0, 0.0, 0.0, 0.0);
+    float4 sum = 0.0;
     
-    float2 pixelSize = ReShade::PixelSize * BLOOM_RADIUS;
-    float4 bloomAccum = 0.0;
-    float weightSum = 0.0;
+    // Kawase pattern - samples in a + pattern with offset
+    sum += tex2D(sourceSampler, texcoord + float2(-offset, -offset) * pixelSize);
+    sum += tex2D(sourceSampler, texcoord + float2(offset, -offset) * pixelSize);
+    sum += tex2D(sourceSampler, texcoord + float2(-offset, offset) * pixelSize);
+    sum += tex2D(sourceSampler, texcoord + float2(offset, offset) * pixelSize);
     
-    static const int sampleCount = 13;
-    static const float offsets[13] = { -6.0, -5.0, -4.0, -3.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 };
-    static const float weights[13] = { 0.008, 0.018, 0.038, 0.062, 0.082, 0.094, 0.100, 0.094, 0.082, 0.062, 0.038, 0.018, 0.008 };
-    
-    [unroll]
-    for (int i = 0; i < sampleCount; i++)
-    {
-        float2 jitter = cheapJitter(texcoord, i * 0.234) * pixelSize.x;
-        float2 offset = float2(offsets[i] * pixelSize.x, 0.0) + jitter;
-        float weight = weights[i];
-        
-        float4 sampleColor = tex2D(EnhancedColorSampler, texcoord + offset);
-        bloomAccum += sampleColor * weight;
-        weightSum += weight;
-    }
-    
-    return bloomAccum / weightSum;
+    return sum * 0.25;
 }
 
-float3 PS_BloomVertical(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
+// Kawase Blur Upsample - spreads the bloom while upscaling
+float4 KawaseUp(sampler sourceSampler, float2 texcoord, float2 pixelSize, float offset)
 {
-    float3 color = tex2D(ReShade::BackBuffer, texcoord).rgb;
+    float4 sum = 0.0;
     
-    if (!EnableBloom)
-        return color;
+    // Tent filter weights for smooth upsampling
+    sum += tex2D(sourceSampler, texcoord + float2(-offset, -offset) * pixelSize) * 0.25;
+    sum += tex2D(sourceSampler, texcoord + float2(offset, -offset) * pixelSize) * 0.25;
+    sum += tex2D(sourceSampler, texcoord + float2(-offset, offset) * pixelSize) * 0.25;
+    sum += tex2D(sourceSampler, texcoord + float2(offset, offset) * pixelSize) * 0.25;
     
-    float2 pixelSize = ReShade::PixelSize * BLOOM_RADIUS;
-    float4 bloomAccum = 0.0;
-    float weightSum = 0.0;
-    
-    static const int sampleCount = 13;
-    static const float offsets[13] = { -5.7, -4.7, -3.7, -2.7, -1.7, -0.7, 0.3, 1.3, 2.3, 3.3, 4.3, 5.3, 6.3 };
-    static const float weights[13] = { 0.008, 0.018, 0.038, 0.062, 0.082, 0.094, 0.100, 0.094, 0.082, 0.062, 0.038, 0.018, 0.008 };
-    
-    [unroll]
-    for (int i = 0; i < sampleCount; i++)
-    {
-        float2 jitter = cheapJitter(texcoord + float2(0.0, i * 0.156), i * 0.345) * pixelSize.y;
-        float2 offset = float2(0.0, offsets[i] * pixelSize.y) + jitter;
-        float weight = weights[i];
-        
-        float4 sampleColor = tex2D(BloomHorizontalSampler, texcoord + offset);
-        bloomAccum += sampleColor * weight;
-        weightSum += weight;
-    }
-    
-    float4 bloom = bloomAccum / weightSum;
-    
-    float3 hsv = RGB2HSV(bloom.rgb);
-    hsv.y *= 1.2;
-    bloom.rgb = HSV2RGB(hsv);
-
-    float3 bloomedColor = color + bloom.rgb * BLOOM_INTENSITY;
-    
-    float originalLuma = dot(color, float3(0.2126, 0.7152, 0.0722));
-    float bloomedLuma = dot(bloomedColor, float3(0.2126, 0.7152, 0.0722));
-    
-    if (bloomedLuma > originalLuma)
-    {
-        float lumaIncrease = bloomedLuma - originalLuma;
-        float softLimit = 0.7; 
-        float compression = smoothstep(softLimit * 0.35, softLimit, bloomedLuma);
-
-        float targetLuma = originalLuma + lumaIncrease * (1.0 - compression * 0.8);
-        float lumaScale = targetLuma / (bloomedLuma + 0.001);
-        bloomedColor *= lumaScale;
-    }
-
-    color = saturate(bloomedColor);
-    return color;
+    return sum;
 }
 
-float3 PS_AntiGreen(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
+// Extract masked colors for blooming
+float4 PS_ExtractBloom(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
 {
+    if (!EnableBloom)
+        return float4(0, 0, 0, 0);
+    
+    float colorMask = tex2D(ColorMaskSampler, texcoord).r;
+    
+    float dither = cheapDither(texcoord);
+    float threshold = 0.15 + (dither - 0.5) * 0.09;
+    
+    if (colorMask <= threshold)
+        return float4(0, 0, 0, 0);
+    
     float3 color = tex2D(ReShade::BackBuffer, texcoord).rgb;
+    float smoothMask = pow((colorMask - threshold) / (1.0 - threshold), 2.5);
     
-    if (!AntiGreen)
-        return color;
-    
+    // SUPER-SATURATE before blurring so it stays vibrant after dilution
     float3 hsv = RGB2HSV(color);
+    hsv.y = saturate(hsv.y * 3.0); // Crank saturation way up
+    hsv.z = saturate(hsv.z * 1.2); // Slight brightness boost too
+    float3 superSaturated = HSV2RGB(hsv);
     
-    float greenHueCenter = 0.3;
-    float greenHueRange = 0.15;
-    float orangeTintAmount = 0.1;
-    float brightnessDarken = 0.80;
+    return float4(superSaturated * smoothMask, smoothMask);
+}
+
+// Downsample passes
+float4 PS_BloomDown1(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
+{
+    if (!EnableBloom)
+        return float4(0, 0, 0, 0);
+    return KawaseDown(BloomExtractSampler, texcoord, ReShade::PixelSize * 2.0, 1.0 * BLOOM_THICKNESS);
+}
+
+float4 PS_BloomDown2(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
+{
+    if (!EnableBloom)
+        return float4(0, 0, 0, 0);
+    return KawaseDown(BloomDown1Sampler, texcoord, ReShade::PixelSize * 4.0, 1.0 * BLOOM_THICKNESS);
+}
+
+float4 PS_BloomDown3(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
+{
+    if (!EnableBloom)
+        return float4(0, 0, 0, 0);
+    return KawaseDown(BloomDown2Sampler, texcoord, ReShade::PixelSize * 8.0, 1.0 * BLOOM_THICKNESS);
+}
+
+// Upsample passes
+float4 PS_BloomUp1(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
+{
+    if (!EnableBloom)
+        return float4(0, 0, 0, 0);
+    float4 up = KawaseUp(BloomDown3Sampler, texcoord, ReShade::PixelSize * 8.0, 1.0 * BLOOM_THICKNESS);
+    float4 current = tex2D(BloomDown2Sampler, texcoord);
+    return up + current;
+}
+
+float4 PS_BloomUp2(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
+{
+    if (!EnableBloom)
+        return float4(0, 0, 0, 0);
+    float4 up = KawaseUp(BloomUp1Sampler, texcoord, ReShade::PixelSize * 4.0, 1.0 * BLOOM_THICKNESS);
+    float4 current = tex2D(BloomDown1Sampler, texcoord);
+    return up + current;
+}
+
+// Soft Screen blend mode - like screen but less bright
+float3 SoftScreenBlend(float3 base, float3 blend)
+{
+    // Modified screen blend with reduced brightness
+    // Original screen: 1.0 - (1.0 - a) * (1.0 - b)
+    // Soft screen: 1.0 - (1.0 - a) * (1.0 - b * softness)
     
-    float hueDist = abs(hsv.x - greenHueCenter);
-    float greenMask = 1.0 - saturate(hueDist / greenHueRange);
+    float softness = 0.65; // Controls how much less bright it is than regular screen
+    float3 result = 1.0 - (1.0 - base) * (1.0 - blend * softness);
     
-    hsv.z = lerp(hsv.z, hsv.z * brightnessDarken, greenMask);
-    hsv.y = lerp(hsv.y, 0.0, greenMask);
+    // Additional brightness reduction for very bright areas
+    float brightness = dot(result, float3(0.2126, 0.7152, 0.0722));
+    if (brightness > 0.9)
+    {
+        float overBright = saturate((brightness - 0.9) / 0.1);
+        result = lerp(result, base, overBright * 0.3);
+    }
     
-    color = HSV2RGB(hsv);
+    return result;
+}
+
+// Final composite with soft screen blend mode
+float3 PS_BloomComposite(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
+{
+    float3 color = tex2D(ReShade::BackBuffer, texcoord).rgb;
     
-    float3 orangeTint = float3(orangeTintAmount, orangeTintAmount * 0.5, 0.0);
-    color += orangeTint * greenMask;
+    if (!EnableBloom)
+        return color;
     
-    return saturate(color);
+    float4 bloomUp = KawaseUp(BloomUp2Sampler, texcoord, ReShade::PixelSize * 2.0, 1.0 * BLOOM_THICKNESS);
+    
+    // The bloom is already super-saturated from extraction
+    float3 bloomColor = bloomUp.rgb * BLOOM_INTENSITY * 0.5;
+    
+    // Use soft screen blend mode (less bright than regular screen)
+    float3 result = SoftScreenBlend(color, bloomColor);
+    
+    return saturate(result);
 }
 
 float3 PS_AntiYellow(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
@@ -486,19 +433,47 @@ float3 PS_AntiYellow(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_
     
     float yellowHueCenter = 0.125;
     float yellowHueRange = 0.1;
-    float blueTintAmount = 0.1;
+    float3 blueTint = float3(0.0, 0.0, 1.0);
+    float tintStrength = 0.1;
     float brightnessDarken = 0.85;
     
     float hueDist = abs(hsv.x - yellowHueCenter);
     float yellowMask = 1.0 - saturate(hueDist / yellowHueRange);
     
     hsv.z = lerp(hsv.z, hsv.z * brightnessDarken, yellowMask);
-    hsv.y = lerp(hsv.y, 0.0, yellowMask);
+    hsv.y = lerp(hsv.y, 0.1, yellowMask * 1.5);
     
     color = HSV2RGB(hsv);
     
-    float3 blueTint = float3(0.0, 0.0, blueTintAmount);
-    color += blueTint * yellowMask;
+    color += blueTint * tintStrength * yellowMask;
+    
+    return saturate(color);
+}
+
+float3 PS_AntiGreen(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
+{
+    float3 color = tex2D(ReShade::BackBuffer, texcoord).rgb;
+    
+    if (!AntiGreen)
+        return color;
+    
+    float3 hsv = RGB2HSV(color);
+    
+    float greenHueCenter = 0.35;
+    float greenHueRange = 0.2;
+    float3 blueTint = float3(0.4, 0.2, 0.7);
+    float tintStrength = 0.09;
+    float brightnessDarken = 1.0;
+    
+    float hueDist = abs(hsv.x - greenHueCenter);
+    float greenMask = 1.0 - saturate(hueDist / greenHueRange);
+    
+    hsv.z = lerp(hsv.z, hsv.z * brightnessDarken, greenMask);
+    hsv.y = lerp(hsv.y, 0.2, greenMask * 1.0);
+    
+    color = HSV2RGB(hsv);
+    
+    color += blueTint * tintStrength * greenMask;
     
     return saturate(color);
 }
@@ -549,7 +524,7 @@ float3 PS_Crosshair(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_T
     
     if (isHorizontal || isVertical)
     {
-        color = CrosshairColor;
+        color = lerp(color, CrosshairColor, DashLineOpacity);
     }
     
     return color;
@@ -573,7 +548,7 @@ float3 PS_HuntressCrosshair(float4 pos : SV_Position, float2 texcoord : TEXCOORD
     
     if (isHorizontal || isVertical)
     {
-        color = CrosshairColor;
+        color = lerp(color, CrosshairColor, DashLineOpacity);
     }
     
     return color;
@@ -607,7 +582,7 @@ float3 PS_DashLine(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Ta
     {
         float2 capCenter = float2(horizontalCenter, verticalCenter + roundingRadius);
         float distToCapCenter = distance(texcoord, capCenter);
-        
+
         if (distToCapCenter > roundingRadius)
             return color;
         
@@ -630,6 +605,186 @@ float3 PS_DashLine(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Ta
     return color;
 }
 
+float DrawText(float2 pixelPos, float2 startPos)
+{
+    const int charSpacing = 6;
+    const int charHeight = 8;
+    const int charWidth = 5;
+    
+    // Map characters: M O S C O W   G H O U L   S H A D E R S
+    const int numChars = 21;
+    
+    float2 relPos = pixelPos - startPos;
+    if (relPos.y < 0 || relPos.y >= charHeight) return 0.0;
+    
+    int col = int(relPos.x);
+    int row = int(relPos.y);
+    
+    int charIndex = col / charSpacing;
+    if (charIndex >= numChars) return 0.0;
+    
+    col = col % charSpacing;
+    if (col >= charWidth) return 0.0;
+   
+    // Skip index 0
+    if (charIndex == 0) {
+        return 0.0;
+    } 
+    // M (italic curvy style)
+    if (charIndex == 1) {
+        int pattern[8] = {
+            0x0A, 0x15, 0x15, 0x11, 0x11, 0x11, 0x11, 0x11
+        };
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    // O (block style)
+    else if (charIndex == 2) {
+        int pattern[8] = {
+            0x0E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E
+        };
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    // S (block style)
+    else if (charIndex == 3) {
+        int pattern[8] = {
+            0x0E, 0x11, 0x10, 0x0E, 0x01, 0x01, 0x11, 0x0E
+        };
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    // C (block style)
+    else if (charIndex == 4) {
+        int pattern[8] = {
+            0x0E, 0x11, 0x10, 0x10, 0x10, 0x10, 0x11, 0x0E
+        };
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    // O (block style)
+    else if (charIndex == 5) {
+        int pattern[8] = {
+            0x0E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E
+        };
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    // W (block style)
+    else if (charIndex == 6) {
+        int pattern[8] = {
+            0x11, 0x11, 0x11, 0x11, 0x15, 0x15, 0x1F, 0x0A
+        };
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    // Space
+    else if (charIndex == 7) {
+        return 0.0;
+    }
+    // G (block style)
+    else if (charIndex == 8) {
+        int pattern[8] = {
+            0x0E, 0x11, 0x10, 0x10, 0x17, 0x11, 0x11, 0x0F
+        };
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    // H (block style)
+    else if (charIndex == 9) {
+        int pattern[8] = {
+            0x11, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11, 0x11
+        };
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    // O (block style)
+    else if (charIndex == 10) {
+        int pattern[8] = {
+            0x0E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E
+        };
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    // U (block style)
+    else if (charIndex == 11) {
+        int pattern[8] = {
+            0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E
+        };
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    // L (block style)
+    else if (charIndex == 12) {
+        int pattern[8] = {
+            0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x1F
+        };
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    // Space
+    else if (charIndex == 13) {
+        return 0.0;
+    }
+    // S (block style)
+    else if (charIndex == 14) {
+        int pattern[8] = {
+            0x0E, 0x11, 0x10, 0x0E, 0x01, 0x01, 0x11, 0x0E
+        };
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    // H (block style)
+    else if (charIndex == 15) {
+        int pattern[8] = {
+            0x11, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11, 0x11
+        };
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    // A (block style)
+    else if (charIndex == 16) {
+        int pattern[8] = {
+            0x0E, 0x11, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11
+        };
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    // D (block style)
+    else if (charIndex == 17) {
+        int pattern[8] = {
+            0x1E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x1E
+        };
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    // E (block style)
+    else if (charIndex == 18) {
+        int pattern[8] = {
+            0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x10, 0x1F
+        };
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    // R (block style)
+    else if (charIndex == 19) {
+        int pattern[8] = {
+            0x1E, 0x11, 0x11, 0x1E, 0x14, 0x12, 0x11, 0x11
+        };
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    // S (block style - last character, completing "SHADERS")
+    else if (charIndex == 20) {
+        int pattern[8] = {
+            0x0E, 0x11, 0x10, 0x0E, 0x01, 0x01, 0x11, 0x0E
+        };
+        return ((pattern[row] >> (4 - col)) & 1);
+    }
+    
+    return 0.0;
+}
+
+float4 PS_Watermark(float4 vpos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
+{
+    float4 color = tex2D(ReShade::BackBuffer, texcoord);
+    
+    float2 watermarkPos = float2(10, BUFFER_HEIGHT - 11); // 10px from left, 11px from bottom (8px font + 3px margin)
+    float3 watermarkColor = float3(1.0, 1.0, 1.0); // White
+    float watermarkOpacity = 0.6; // 60% opacity
+    
+    float watermarkMask = DrawText(vpos.xy, watermarkPos);
+    
+    if (watermarkMask > 0.5) {
+        color.rgb = lerp(color.rgb, watermarkColor, watermarkOpacity);
+    }
+    
+    return color;
+}
+
 technique all_u_need_4_dbd_by_misha<
     ui_label = "All you need for DBD";
     ui_tooltip = "Comprehensive shader for Dead by Daylight by Misha \"Moscow Ghoul\""; 
@@ -640,7 +795,7 @@ technique all_u_need_4_dbd_by_misha<
         VertexShader = PostProcessVS;
         PixelShader = PS_AntiYellow;
     }
-
+    
     pass AntiGreenFilter
     {
         VertexShader = PostProcessVS;
@@ -654,24 +809,17 @@ technique all_u_need_4_dbd_by_misha<
         RenderTarget = ColorMaskTex;
     }
 
-    pass ColorReplacement
+    pass RedEnhancement
     {
         VertexShader = PostProcessVS;
         PixelShader = PS_RedEnhance;
     }
     
-    pass StoreEnhancedColors
+    pass ExtractBloom
     {
         VertexShader = PostProcessVS;
-        PixelShader = PS_StoreEnhancedColors;
-        RenderTarget = EnhancedColorTex;
-    }
-    
-    pass GenerateBloomMask
-    {
-        VertexShader = PostProcessVS;
-        PixelShader = PS_GenerateBloomMask;
-        RenderTarget = BloomMaskTex;
+        PixelShader = PS_ExtractBloom;
+        RenderTarget = BloomExtractTex;
     }
 
     pass BrightnessEnhancement
@@ -680,17 +828,46 @@ technique all_u_need_4_dbd_by_misha<
         PixelShader = PS_BrightnessEnhance;
     }
     
-    pass BloomHorizontal
+    // Kawase downsample chain
+    pass BloomDown1
     {
         VertexShader = PostProcessVS;
-        PixelShader = PS_BloomHorizontal;
-        RenderTarget = BloomHorizontalTex;
+        PixelShader = PS_BloomDown1;
+        RenderTarget = BloomDown1Tex;
     }
     
-    pass BloomVerticalAndApply
+    pass BloomDown2
     {
         VertexShader = PostProcessVS;
-        PixelShader = PS_BloomVertical;
+        PixelShader = PS_BloomDown2;
+        RenderTarget = BloomDown2Tex;
+    }
+    
+    pass BloomDown3
+    {
+        VertexShader = PostProcessVS;
+        PixelShader = PS_BloomDown3;
+        RenderTarget = BloomDown3Tex;
+    }
+    
+    pass BloomUp1
+    {
+        VertexShader = PostProcessVS;
+        PixelShader = PS_BloomUp1;
+        RenderTarget = BloomUp1Tex;
+    }
+    
+    pass BloomUp2
+    {
+        VertexShader = PostProcessVS;
+        PixelShader = PS_BloomUp2;
+        RenderTarget = BloomUp2Tex;
+    }
+    
+    pass BloomComposite
+    {
+        VertexShader = PostProcessVS;
+        PixelShader = PS_BloomComposite;
     }
 
     pass Sharpening
@@ -715,5 +892,11 @@ technique all_u_need_4_dbd_by_misha<
     {
         VertexShader = PostProcessVS;
         PixelShader = PS_DashLine;
+    }
+
+    pass Watermark
+    {
+        VertexShader = PostProcessVS;
+        PixelShader = PS_Watermark;
     }
 }
