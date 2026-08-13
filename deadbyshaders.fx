@@ -39,8 +39,24 @@ uniform bool EnableBloom <
     ui_category = "Overall";
 > = true;
 
+uniform bool ShadowBoost <
+    ui_label = "Boost Dark Areas";
+    ui_tooltip = "Lifts brightness only in very dark areas, leaves bright areas untouched";
+    ui_category = "Overall";
+> = false;
+
+uniform float ShadowBoostStrength <
+    ui_type = "slider";
+    ui_label = "Dark Area Boost Strength";
+    ui_tooltip = "How much extra brightness to add to very dark areas";
+    ui_category = "Overall";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_step = 0.01;
+> = 0.3;
+
 static const float BLOOM_THICKNESS = 1;
 static const float BLOOM_INTENSITY = 1.5;
+static const float SHADOW_BOOST_THRESHOLD = 0.35; // luma above this is left completely untouched
 
 uniform float3 TargetColor <
     ui_type = "color";
@@ -70,6 +86,12 @@ uniform float TargetHueShift <
 uniform bool ChromaMode <
     ui_label = "Enable Chroma Mode";
     ui_tooltip = "Automatically cycle through hue shifts (rainbow effect)";
+    ui_category = "Red Enhancement + colorshift";
+> = false;
+
+uniform bool PreviewTargetColor <
+    ui_label = "Preview Target Color";
+    ui_tooltip = "Shows a circle in the middle of the screen with the target color, affected by the hue shift/Chroma Mode";
     ui_category = "Red Enhancement + colorshift";
 > = false;
 
@@ -112,6 +134,9 @@ uniform float DashLineOpacity <
     ui_min = 0.0; ui_max = 1.0;
     ui_step = 0.05;
 > = 0.5;
+
+static const float PREVIEW_CIRCLE_RADIUS = 40.0;
+static const float PREVIEW_CIRCLE_OUTLINE = 2.0;
 
 static const float SHARPNESS_STRENGTH = 1.30;
 static const float SHARPNESS_RADIUS = 0.5;
@@ -249,6 +274,20 @@ float3 PS_BrightnessEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD
     float midpoint = 0.5;
     color = (color - midpoint) * 1.1 + midpoint;
     
+    if (ShadowBoost)
+    {
+        float boostLuma = dot(color, float3(0.2126, 0.7152, 0.0722));
+        // 1.0 for pitch black, fades to exactly 0.0 at SHADOW_BOOST_THRESHOLD and stays 0 above it
+        float darkMask = pow(saturate(1.0 - boostLuma / SHADOW_BOOST_THRESHOLD), 2.0);
+        
+        // Gamma-style lift instead of a flat add: true black (0) stays 0, but
+        // non-zero dark values get pulled up nonlinearly, which *increases*
+        // contrast/separation between shadow details instead of flattening
+        // everything toward the same grey. Blends smoothly to no-op via darkMask.
+        float shadowGamma = lerp(1.0, 1.0 - ShadowBoostStrength * 1, darkMask);
+        color = pow(saturate(color), shadowGamma);
+    }
+    
     return saturate(color);
 }
 
@@ -296,6 +335,50 @@ float3 PS_RedEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_
     }
     
     return saturate(color);
+}
+
+// Same hue-shift/Chroma Mode logic as PS_RedEnhance, applied directly to TargetColor
+float3 GetShiftedTargetColor()
+{
+    float3 hsv = RGB2HSV(TargetColor);
+    
+    float hueShift = TargetHueShift;
+    
+    if (ChromaMode)
+    {
+        float timeInSeconds = timer * 0.001;
+        float cycle = frac(timeInSeconds / ChromaPeriod);
+        hueShift = (cycle * 360.0) - 180.0;
+    }
+    
+    if (abs(hueShift) > 0.1)
+    {
+        float hueShiftAmount = (hueShift / 360.0);
+        hsv.x = frac(hsv.x + hueShiftAmount);
+    }
+    
+    return HSV2RGB(hsv);
+}
+
+float3 PS_PreviewCircle(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
+{
+    float3 color = tex2D(ReShade::BackBuffer, texcoord).rgb;
+    
+    if (!PreviewTargetColor)
+        return color;
+    
+    float2 center = float2(BUFFER_WIDTH, BUFFER_HEIGHT) * 0.5;
+    float dist = length(pos.xy - center);
+    
+    if (dist <= PREVIEW_CIRCLE_RADIUS)
+    {
+        float3 shiftedTarget = GetShiftedTargetColor();
+        // Thin dark outline so the circle stays visible against similarly colored backgrounds
+        float edgeMask = smoothstep(PREVIEW_CIRCLE_RADIUS - PREVIEW_CIRCLE_OUTLINE, PREVIEW_CIRCLE_RADIUS, dist);
+        color = lerp(shiftedTarget, float3(0.0, 0.0, 0.0), edgeMask);
+    }
+    
+    return color;
 }
 
 float4 KawaseDown(sampler sourceSampler, float2 texcoord, float2 pixelSize, float offset)
@@ -443,15 +526,15 @@ float3 PS_AntiYellow(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_
     
     float yellowHueCenter = 0.125;
     float yellowHueRange = 0.1;
-    float3 blueTint = float3(0.0, 0.0, 1.0);
+    float3 blueTint = float3(-0.7, 0.0, 0.7);
     float tintStrength = 0.1;
-    float brightnessDarken = 0.85;
+    float brightnessDarken = 0.75;
     
     float hueDist = abs(hsv.x - yellowHueCenter);
     float yellowMask = 1.0 - saturate(hueDist / yellowHueRange);
     
     hsv.z = lerp(hsv.z, hsv.z * brightnessDarken, yellowMask);
-    hsv.y = lerp(hsv.y, 0.1, yellowMask * 1.5);
+    hsv.y *= lerp(1.0, 0.3, yellowMask * 1.2);
     
     color = HSV2RGB(hsv);
     
@@ -471,15 +554,15 @@ float3 PS_AntiGreen(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_T
     
     float greenHueCenter = 0.35;
     float greenHueRange = 0.2;
-    float3 blueTint = float3(0.4, 0.2, 0.7);
-    float tintStrength = 0.09;
-    float brightnessDarken = 1.0;
+    float3 blueTint = float3(0.1, -0.3, -0.3);
+    float tintStrength = 0.1;
+    float brightnessDarken = 0.9;
     
     float hueDist = abs(hsv.x - greenHueCenter);
     float greenMask = 1.0 - saturate(hueDist / greenHueRange);
     
     hsv.z = lerp(hsv.z, hsv.z * brightnessDarken, greenMask);
-    hsv.y = lerp(hsv.y, 0.2, greenMask * 1.0);
+    hsv.y = lerp(hsv.y, 0.3, greenMask);
     
     color = HSV2RGB(hsv);
     
@@ -823,6 +906,12 @@ technique all_u_need_4_dbd_by_misha<
     {
         VertexShader = PostProcessVS;
         PixelShader = PS_RedEnhance;
+    }
+    
+    pass PreviewTargetColorCircle
+    {
+        VertexShader = PostProcessVS;
+        PixelShader = PS_PreviewCircle;
     }
     
     pass ExtractBloom
