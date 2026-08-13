@@ -41,18 +41,11 @@ uniform bool EnableBloom <
 
 uniform bool ShadowBoost <
     ui_label = "Boost Dark Areas";
-    ui_tooltip = "Lifts brightness only in very dark areas, leaves bright areas untouched";
+    ui_tooltip = "Hello gais, dredge on midwich gets his own setting";
     ui_category = "Overall";
 > = false;
 
-uniform float ShadowBoostStrength <
-    ui_type = "slider";
-    ui_label = "Dark Area Boost Strength";
-    ui_tooltip = "How much extra brightness to add to very dark areas";
-    ui_category = "Overall";
-    ui_min = 0.0; ui_max = 1.0;
-    ui_step = 0.01;
-> = 0.3;
+static const float ShadowBoostStrength = 0.6;
 
 static const float BLOOM_THICKNESS = 1;
 static const float BLOOM_INTENSITY = 1.5;
@@ -91,7 +84,7 @@ uniform bool ChromaMode <
 
 uniform bool PreviewTargetColor <
     ui_label = "Preview Target Color";
-    ui_tooltip = "Shows a circle in the middle of the screen with the target color, affected by the hue shift/Chroma Mode";
+    ui_tooltip = "Preview of what the hue shift does";
     ui_category = "Red Enhancement + colorshift";
 > = false;
 
@@ -284,7 +277,7 @@ float3 PS_BrightnessEnhance(float4 pos : SV_Position, float2 texcoord : TEXCOORD
         // non-zero dark values get pulled up nonlinearly, which *increases*
         // contrast/separation between shadow details instead of flattening
         // everything toward the same grey. Blends smoothly to no-op via darkMask.
-        float shadowGamma = lerp(1.0, 1.0 - ShadowBoostStrength * 1, darkMask);
+        float shadowGamma = lerp(1.0, 1.0 - ShadowBoostStrength * 0.9, darkMask);
         color = pow(saturate(color), shadowGamma);
     }
     
