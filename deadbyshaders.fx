@@ -45,11 +45,11 @@ uniform bool ShadowBoost <
     ui_category = "Overall";
 > = false;
 
-static const float ShadowBoostStrength = 0.6;
+static const float ShadowBoostStrength = 0.65;
 
 static const float BLOOM_THICKNESS = 1;
 static const float BLOOM_INTENSITY = 1.5;
-static const float SHADOW_BOOST_THRESHOLD = 0.35; // luma above this is left completely untouched
+static const float SHADOW_BOOST_THRESHOLD = 0.25; // luma above this is left completely untouched
 
 uniform float3 TargetColor <
     ui_type = "color";
@@ -69,18 +69,12 @@ uniform float ColorLikeness <
 
 uniform float TargetHueShift <
     ui_type = "slider";
-    ui_label = "Target Color Hue Shift";
+    ui_label = "Hue Shift";
     ui_tooltip = "Determines the outcome color; think of it as the number of degrees by which you shift the color wheel";
     ui_category = "Red Enhancement + colorshift";
     ui_min = -180.0; ui_max = 180.0;
     ui_step = 1.0;
 > = 180.0;
-
-uniform bool ChromaMode <
-    ui_label = "Enable Chroma Mode";
-    ui_tooltip = "Automatically cycle through hue shifts (rainbow effect)";
-    ui_category = "Red Enhancement + colorshift";
-> = false;
 
 uniform bool PreviewTargetColor <
     ui_label = "Preview Target Color";
@@ -96,6 +90,12 @@ uniform float ChromaPeriod <
     ui_min = 0.1; ui_max = 10.0;
     ui_step = 0.5;
 > = 5.0;
+
+uniform bool ChromaMode <
+    ui_label = "Enable Chroma Mode";
+    ui_tooltip = "Automatically cycle through hue shifts (rainbow effect)";
+    ui_category = "Red Enhancement + colorshift";
+> = false;
 
 uniform float timer < source = "timer"; >;
 
